@@ -2,22 +2,59 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const ItemMantenimiento = new Schema({
-  nombre: String,
+  nombre: { type: String, required: true },
   marca: String,
-  actualKm: Number,
-  proximoKm: Number,
-  frecuenciaKm: Number,
-  frecuenciaMeses: Number
+  actualKm: { type: Number, min: 0 },
+  proximoKm: { type: Number, min: 0 },
+  frecuenciaKm: { type: Number, min: 0 },
+  frecuenciaMeses: { type: Number, min: 0 }
 }, { _id: false });
 
+// REGEX patente argentina
+const PATENTE_REGEX = /^[A-Z]{2}[0-9]{3}[A-Z]{2}$|^[A-Z]{3}[0-9]{3}$/;
+
 const VehiculoSchema = new Schema({
-  cliente: { type: Schema.Types.ObjectId, ref: 'Cliente', required: true },
-  patente: { type: String, required: true, index: true },
-  marca: String,
-  modelo: String,
-  kmActual: Number,
-  mantenimientos: [ItemMantenimiento],
-  createdAt: { type: Date, default: Date.now }
+
+  cliente: { 
+    type: Schema.Types.ObjectId, 
+    ref: 'Cliente', 
+    required: true 
+  },
+
+  patente: { 
+    type: String,
+    required: true,
+    unique: true,        // 🚨 evita duplicados
+    index: true,
+    uppercase: true,     // guarda en mayúsculas automáticamente
+    trim: true,
+    validate: {
+      validator: v => PATENTE_REGEX.test(v),
+      message: p => `${p.value} no es una patente argentina válida`
+    }
+  },
+
+  marca: { type: String, trim: true },
+  modelo: { type: String, trim: true },
+
+  kmActual: { 
+    type: Number,
+    min: [0, "El kilometraje no puede ser negativo"]
+  },
+
+  mantenimientos: [ItemMantenimiento]
+
+}, { timestamps: true });
+
+// Normalizador avanzado de patente
+VehiculoSchema.pre('save', function(next) {
+  if (this.patente) {
+    this.patente = this.patente
+      .toUpperCase()
+      .replace(/\s+/g, "")   // elimina espacios
+      .replace(/-/g, "");    // elimina guiones
+  }
+  next();
 });
 
 module.exports = mongoose.model('Vehiculo', VehiculoSchema);
