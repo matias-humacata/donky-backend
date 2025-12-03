@@ -2,59 +2,44 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const TurnoSchema = new Schema({
+  cliente: { type: Schema.Types.ObjectId, ref: 'Cliente', required: true },
+  vehiculo: { type: Schema.Types.ObjectId, ref: 'Vehiculo', required: true },
 
-  cliente: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'Cliente', 
-    required: true 
-  },
+  fecha: { type: Date, required: true },
+  duracionMin: { type: Number, default: 60 },
 
-  vehiculo: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'Vehiculo', 
-    required: true 
-  },
-
-  fecha: { 
-    type: Date, 
-    required: true,
-    validate: {
-      validator: v => !isNaN(new Date(v).getTime()),
-      message: "La fecha del turno no es válida"
-    }
-  },
-
-  duracionMin: { 
-    type: Number, 
-    default: 60,
-    min: [10, "La duración mínima del turno es 10 minutos"],
-    max: [720, "La duración máxima es de 12 horas"]
-  },
-
-  estado: { 
+  estado: {
     type: String,
     enum: ['pendiente', 'confirmado', 'rechazado', 'cancelado', 'completado'],
-    default: 'pendiente'
+    default: 'pendiente',
+    index: true
   },
 
-  notificado: {
-    type: Boolean,
-    default: false // se vuelve true cuando n8n confirma envío
-  }
+  // 🔹 NUEVOS CAMPOS PROFESIONALES
+  aprobadoEn: { type: Date },
+  rechazadoEn: { type: Date },
+  canceladoEn: { type: Date },
+  completadoEn: { type: Date },
 
-}, { timestamps: true });
+  notificado: { type: Boolean, default: false }, // notificación a n8n enviada
 
-
-// INDICE: búsqueda rápida de pendientes / calendario
-TurnoSchema.index({ fecha: 1, estado: 1 });
-
-
-// Limpieza de fecha preventiva
-TurnoSchema.pre('save', function(next) {
-  if (this.fecha) {
-    this.fecha = new Date(this.fecha);
-  }
-  next();
+  creadoEn: { type: Date, default: Date.now }
 });
+
+// ========================================================
+// 📌 ÍNDICES recomendados para performance REAL
+// ========================================================
+
+// Buscar turnos por fecha (para solapamientos)
+TurnoSchema.index({ fecha: 1 });
+
+// Evitar reservas duplicadas exactas (cliente + fecha)
+TurnoSchema.index({ cliente: 1, fecha: 1 });
+
+// Buscar turnos del vehículo rápidamente
+TurnoSchema.index({ vehiculo: 1 });
+
+// Estado + Fecha → para panel del taller
+TurnoSchema.index({ estado: 1, fecha: 1 });
 
 module.exports = mongoose.model('Turno', TurnoSchema);
