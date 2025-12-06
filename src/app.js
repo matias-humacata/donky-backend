@@ -11,7 +11,10 @@ const tallerConfigRoute = require('./routes/tallerConfig');
 const app = express();
 
 // Middlewares base
-app.use(morgan('dev'));
+// Usar morgan sólo fuera de producción para evitar logs excesivos en prod
+if (process.env.NODE_ENV !== 'production') {
+  app.use(morgan('dev'));
+}
 
 app.use(cors({
   origin: process.env.FRONTEND_URL || '*',
