@@ -159,6 +159,190 @@ router.get('/pendientes', async (req, res) => {
   }
 });
 
+// ==========================
+// Endpoints adicionales para Turnos
+// ==========================
+
+// Listar turnos con filtros y paginación
+router.get('/', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit) || 50));
+
+    const filter = {};
+    if (req.query.estado) filter.estado = req.query.estado;
+    if (req.query.cliente) filter.cliente = req.query.cliente;
+    if (req.query.vehiculo) filter.vehiculo = req.query.vehiculo;
+
+    if (req.query.desde || req.query.hasta) {
+      filter.fecha = {};
+      if (req.query.desde) filter.fecha.$gte = new Date(req.query.desde);
+      if (req.query.hasta) filter.fecha.$lte = new Date(req.query.hasta);
+    }
+
+    const total = await Turno.countDocuments(filter);
+    const data = await Turno.find(filter)
+      .populate('cliente vehiculo')
+      .sort({ fecha: 1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    res.json({ data, meta: { total, page, limit } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Obtener turno por ID
+router.get('/:id', async (req, res) => {
+  try {
+    const turno = await Turno.findById(req.params.id).populate('cliente vehiculo');
+    if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
+    res.json(turno);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Cancelar turno
+router.patch('/:id/cancelar', async (req, res) => {
+  try {
+    const turno = await Turno.findById(req.params.id).populate('cliente vehiculo');
+    if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
+
+    if (turno.estado === 'cancelado') {
+      return res.status(409).json({ error: 'El turno ya está cancelado' });
+    }
+
+    turno.estado = 'cancelado';
+    turno.canceladoEn = new Date();
+    turno.notificado = false;
+
+    await turno.save();
+
+    // Notificar a n8n (intento, si está configurado)
+    if (process.env.N8N_WEBHOOK_APPROVAL) {
+      try {
+        await axios.post(process.env.N8N_WEBHOOK_APPROVAL, {
+          evento: 'turno_cancelado',
+          turno
+        });
+      } catch (err) {
+        console.warn('⚠ No se pudo notificar a n8n:', err.message);
+      }
+    }
+
+    res.json(turno);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Actualizar turno (fecha, duracion, vehiculo) — revalida reglas de negocio
+router.patch('/:id', async (req, res) => {
+  try {
+    const turno = await Turno.findById(req.params.id);
+    if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
+
+    const { fecha, duracionMin, vehiculo } = req.body;
+
+    // Si cambian cliente/vehiculo/fecha hay que revalidar
+    let newFecha = turno.fecha;
+    let newDur = turno.duracionMin || 60;
+    let newVeh = turno.vehiculo;
+
+    if (fecha) {
+      const parsed = toArgentina(fecha);
+      if (isNaN(parsed.getTime())) return res.status(400).json({ error: 'Fecha inválida' });
+      newFecha = parsed;
+    }
+
+    if (duracionMin !== undefined) {
+      if (typeof duracionMin !== 'number' || duracionMin < 15 || duracionMin > 600) {
+        return res.status(400).json({ error: 'Duración inválida' });
+      }
+      newDur = duracionMin;
+    }
+
+    if (vehiculo) {
+      const v = await Vehiculo.findById(vehiculo);
+      if (!v) return res.status(404).json({ error: 'Vehículo no existe' });
+      newVeh = vehiculo;
+    }
+
+    // Validaciones de taller
+    const config = await loadConfig();
+
+    // Vacaciones
+    if (config.vacaciones?.length > 0) {
+      for (const v of config.vacaciones) {
+        const ini = dateOnly(new Date(v.inicio));
+        const fin = dateOnly(new Date(v.fin));
+        if (newFecha >= ini && newFecha <= fin) {
+          return res.status(409).json({ error: 'El taller está de vacaciones en esa fecha' });
+        }
+      }
+    }
+
+    // Días no laborables
+    if (config.diasNoLaborables?.length > 0) {
+      for (const dia of config.diasNoLaborables) {
+        if (isSameDay(new Date(dia), newFecha)) {
+          return res.status(409).json({ error: 'El taller no atiende ese día' });
+        }
+      }
+    }
+
+    // Día permitido
+    const dias = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+    const weekdayName = dias[newFecha.getDay()];
+    if (!config.diasLaborales.includes(weekdayName)) {
+      return res.status(409).json({ error: `El taller no trabaja los días ${weekdayName}` });
+    }
+
+    const apertura = parseTimeToMinutes(config.horarioApertura);
+    const cierre = parseTimeToMinutes(config.horarioCierre);
+    const minuteOfDay = getMinutesOfDay(newFecha);
+    const endMinute = minuteOfDay + newDur;
+    if (minuteOfDay < apertura || endMinute > cierre) {
+      return res.status(409).json({ error: 'La hora solicitada está fuera del horario de atención' });
+    }
+
+    // Solapamiento (excluir el propio turno)
+    const inicioDia = dateOnly(newFecha);
+    const finDia = new Date(inicioDia.getTime() + 24 * 60 * 60 * 1000);
+
+    const turnosMismoDia = await Turno.find({
+      fecha: { $gte: inicioDia, $lt: finDia },
+      estado: { $in: ['pendiente', 'confirmado'] },
+      _id: { $ne: turno._id }
+    });
+
+    const start = newFecha;
+    const end = addMinutes(start, newDur);
+
+    for (const t of turnosMismoDia) {
+      const tInicio = new Date(t.fecha);
+      const tFin = addMinutes(tInicio, t.duracionMin || 60);
+      if (overlaps(start, end, tInicio, tFin)) {
+        return res.status(409).json({ error: 'Ya existe un turno reservado en ese horario' });
+      }
+    }
+
+    // Aplicar cambios
+    turno.fecha = newFecha;
+    turno.duracionMin = newDur;
+    turno.vehiculo = newVeh;
+
+    await turno.save();
+    res.json(turno);
+
+  } catch (err) {
+    console.error('❌ Error actualizando turno:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // ==========================================================
 //  🟦 PATCH /api/turnos/:id/aprobar → notifica a n8n
 // ==========================================================
