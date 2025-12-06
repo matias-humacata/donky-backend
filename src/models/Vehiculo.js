@@ -24,9 +24,9 @@ const VehiculoSchema = new Schema({
   patente: { 
     type: String,
     required: true,
-    unique: true,        // 🚨 evita duplicados
+    unique: true,
     index: true,
-    uppercase: true,     // guarda en mayúsculas automáticamente
+    uppercase: true,
     trim: true,
     validate: {
       validator: v => PATENTE_REGEX.test(v),
@@ -46,15 +46,19 @@ const VehiculoSchema = new Schema({
 
 }, { timestamps: true });
 
-// Normalizador avanzado de patente
+// ===============================
+// PRE-SAVE CORRECTO (sin errores)
+// ===============================
 VehiculoSchema.pre('save', function(next) {
+
   if (this.patente) {
     this.patente = this.patente
       .toUpperCase()
-      .replace(/\s+/g, "")   // elimina espacios
-      .replace(/-/g, "");    // elimina guiones
+      .replace(/\s+/g, "")
+      .replace(/-/g, "");
   }
-  next();
+
+  next(); // <-- ahora SÍ existe
 });
 
 module.exports = mongoose.model('Vehiculo', VehiculoSchema);

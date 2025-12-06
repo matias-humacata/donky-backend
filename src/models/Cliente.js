@@ -29,19 +29,15 @@ const ClienteSchema = new Schema({
 }, { timestamps: true }); // createdAt y updatedAt
 
 // 🔧 Normalización automática del teléfono antes de guardar
-ClienteSchema.pre('save', function(next) {
+ClienteSchema.pre('save', function() {
   if (this.telefono) {
-    // Quitar espacios, guiones, paréntesis, etc.
     let t = this.telefono.replace(/[^0-9+]/g, "");
-
-    // Si no comienza con +54 (Argentina), se agrega por defecto
     if (!t.startsWith("+")) {
       t = "+54" + t;
     }
-
     this.telefono = t;
   }
-  next();
 });
+
 
 module.exports = mongoose.model('Cliente', ClienteSchema);

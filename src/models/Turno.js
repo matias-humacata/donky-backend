@@ -2,44 +2,74 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const TurnoSchema = new Schema({
-  cliente: { type: Schema.Types.ObjectId, ref: 'Cliente', required: true },
-  vehiculo: { type: Schema.Types.ObjectId, ref: 'Vehiculo', required: true },
-
-  fecha: { type: Date, required: true },
-  duracionMin: { type: Number, default: 60 },
-
-  estado: {
-    type: String,
-    enum: ['pendiente', 'confirmado', 'rechazado', 'cancelado', 'completado'],
-    default: 'pendiente',
+  cliente: {
+    type: Schema.Types.ObjectId,
+    ref: 'Cliente',
+    required: true,
     index: true
   },
 
-  // 🔹 NUEVOS CAMPOS PROFESIONALES
-  aprobadoEn: { type: Date },
-  rechazadoEn: { type: Date },
-  canceladoEn: { type: Date },
-  completadoEn: { type: Date },
+  vehiculo: {
+    type: Schema.Types.ObjectId,
+    ref: 'Vehiculo',
+    required: true,
+    index: true
+  },
 
-  notificado: { type: Boolean, default: false }, // notificación a n8n enviada
+  // Fecha del turno ya normalizada por backend a horario Argentina
+  fecha: {
+    type: Date,
+    required: true,
+    index: true
+  },
 
-  creadoEn: { type: Date, default: Date.now }
+  // Duración en minutos
+  duracionMin: {
+    type: Number,
+    default: 60,
+    min: 15,
+    max: 600
+  },
+
+  // Estado del turno
+  estado: {
+    type: String,
+    enum: ["pendiente", "confirmado", "rechazado", "cancelado"],
+    default: "pendiente",
+    index: true
+  },
+
+  // FECHAS DE AUDITORÍA
+  creadoEn: { type: Date, default: Date.now },
+
+  aprobadoEn: { type: Date, default: null },
+  rechazadoEn: { type: Date, default: null },
+  canceladoEn: { type: Date, default: null },
+
+  // Para evitar notificar dos veces a n8n
+  notificado: {
+    type: Boolean,
+    default: false,
+    index: true
+  }
 });
 
-// ========================================================
-// 📌 ÍNDICES recomendados para performance REAL
-// ========================================================
 
-// Buscar turnos por fecha (para solapamientos)
+// ======================================================
+// ÍNDICES recomendados para rendimiento
+// ======================================================
+
+// 📌 Optimiza búsqueda de turnos por día
 TurnoSchema.index({ fecha: 1 });
 
-// Evitar reservas duplicadas exactas (cliente + fecha)
-TurnoSchema.index({ cliente: 1, fecha: 1 });
+// 📌 Cliente + fecha (rápido para historial por cliente)
+TurnoSchema.index({ cliente: 1, fecha: -1 });
 
-// Buscar turnos del vehículo rápidamente
-TurnoSchema.index({ vehiculo: 1 });
+// 📌 Vehículo + fecha (rápido para historial de vehículo)
+TurnoSchema.index({ vehiculo: 1, fecha: -1 });
 
-// Estado + Fecha → para panel del taller
+// 📌 Estado + fecha (ver pendientes/confirmados ordenados)
 TurnoSchema.index({ estado: 1, fecha: 1 });
+
 
 module.exports = mongoose.model('Turno', TurnoSchema);

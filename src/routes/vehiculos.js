@@ -3,77 +3,52 @@ const router = express.Router();
 const Vehiculo = require('../models/Vehiculo');
 const Cliente = require('../models/Cliente');
 
-// Normalizar patente: AA123BB
-function normalizePatente(patente) {
-  return patente
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, ""); // elimina espacios y guiones
-}
-
-
 // Crear vehículo
 router.post('/', async (req, res) => {
   try {
-    let { cliente, patente } = req.body;
+    const { cliente, marca, modelo, patente } = req.body;
 
-    // Validaciones básicas
-    if (!cliente || !patente) {
-      return res.status(400).json({ error: "Cliente y patente son obligatorios" });
+    if (!cliente || !marca || !modelo || !patente) {
+      return res.status(400).json({
+        error: "cliente, marca, modelo y patente son obligatorios"
+      });
     }
 
-    // Verificar que el cliente exista
-    const cli = await Cliente.findById(cliente);
-    if (!cli) {
+    // Verificar cliente existente
+    const existeCliente = await Cliente.findById(cliente);
+    if (!existeCliente) {
       return res.status(404).json({ error: "El cliente no existe" });
     }
 
-    // Normalizar patente
-    const patenteNorm = normalizePatente(patente);
-
-    // Verificar duplicado
-    const existente = await Vehiculo.findOne({ patente: patenteNorm });
-    if (existente) {
-      return res.status(409).json({ error: "La patente ya está registrada" });
-    }
-
-    // Crear vehículo
-    const vehiculo = new Vehiculo({
-      ...req.body,
-      patente: patenteNorm
-    });
-
+    const vehiculo = new Vehiculo(req.body);
     await vehiculo.save();
 
     res.status(201).json(vehiculo);
 
   } catch (err) {
+    console.error("Error creando vehículo:", err);
+
+    if (err.code === 11000) {
+      return res.status(409).json({
+        error: "La patente ya está registrada en el sistema"
+      });
+    }
+
     res.status(400).json({ error: err.message });
   }
 });
 
-
-// Obtener historial por patente
+// Historial por patente
 router.get('/:patente/historial', async (req, res) => {
   try {
-    const patenteNorm = normalizePatente(req.params.patente);
-
-    const vehiculo = await Vehiculo.findOne({ patente: patenteNorm })
+    const vehiculo = await Vehiculo.findOne({ patente: req.params.patente })
       .populate("cliente");
 
     if (!vehiculo) {
       return res.status(404).json({ error: "Vehículo no encontrado" });
     }
 
-    res.json({
-      patente: vehiculo.patente,
-      marca: vehiculo.marca,
-      modelo: vehiculo.modelo,
-      kmActual: vehiculo.kmActual,
-      cliente: vehiculo.cliente,
-      mantenimientos: vehiculo.mantenimientos,
-      creadoEn: vehiculo.createdAt
-    });
-
+    res.json(vehiculo);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

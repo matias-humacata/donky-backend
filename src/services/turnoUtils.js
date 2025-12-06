@@ -1,7 +1,18 @@
 const TallerConfig = require('../models/TallerConfig');
 
 // ==============================
-// Convierte "HH:mm" → minutos
+// Convierte fecha a hora LOCAL ARGENTINA (UTC-3)
+// ==============================
+function toArgentinaDate(date) {
+  return new Date(
+    new Date(date).toLocaleString("en-US", {
+      timeZone: "America/Argentina/Buenos_Aires"
+    })
+  );
+}
+
+// ==============================
+// Convierte "HH:mm" → minutos desde medianoche
 // ==============================
 function parseTimeToMinutes(timeStr) {
   if (!/^\d{2}:\d{2}$/.test(timeStr)) {
@@ -18,33 +29,32 @@ function parseTimeToMinutes(timeStr) {
 }
 
 // ==============================
-// Devuelve minutos desde medianoche (local)
+// Minutos desde medianoche (local Argentina)
 // ==============================
 function getMinutesOfDay(date) {
-  const local = new Date(date.getTime());
+  const local = toArgentinaDate(date);
   return local.getHours() * 60 + local.getMinutes();
 }
 
 // ==============================
-// Devuelve YYYY-MM-DD sin tz shift
+// Normalizar fecha → YYYY-MM-DD 00:00:00
 // ==============================
 function dateOnly(d) {
-  return new Date(
-    d.getFullYear(),
-    d.getMonth(),
-    d.getDate(),
-    0, 0, 0, 0
-  );
+  const local = toArgentinaDate(d);
+  return new Date(local.getFullYear(), local.getMonth(), local.getDate(), 0, 0, 0, 0);
 }
 
 // ==============================
-// Compara solo día/mes/año
+// Comparar dos fechas solo por día / mes / año
 // ==============================
 function isSameDay(a, b) {
+  const da = toArgentinaDate(a);
+  const db = toArgentinaDate(b);
+
   return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
+    da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate()
   );
 }
 
@@ -64,13 +74,14 @@ async function loadConfig() {
 }
 
 // ==============================
-// Verifica que dos turnos se solapen
+// Revisa si dos rangos de horario se solapan
 // ==============================
 function overlaps(startA, endA, startB, endB) {
   return startA < endB && startB < endA;
 }
 
 module.exports = {
+  toArgentinaDate,
   parseTimeToMinutes,
   getMinutesOfDay,
   dateOnly,

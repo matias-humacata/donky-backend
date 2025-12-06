@@ -14,7 +14,7 @@ const app = express();
 app.use(morgan('dev'));
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',  // ajustar en prod
+  origin: process.env.FRONTEND_URL || '*',
 }));
 
 // Seguridad: limitar tamaño JSON
@@ -31,16 +31,15 @@ app.get('/', (req, res) => {
   res.json({ status: "API del Taller Donking funcionando 🚗" });
 });
 
-// Manejo de rutas inexistentes
+// ❗ Rutas inexistentes (IMPORTANTE: incluir next)
 app.use((req, res, next) => {
   res.status(404).json({ error: "Ruta no encontrada" });
 });
 
-// Manejo global de errores
+// ❗ Middleware global de errores (IMPORTANTE: 4 parámetros)
 app.use((err, req, res, next) => {
   console.error("🔥 Error global:", err);
   res.status(500).json({ error: "Error interno del servidor" });
 });
 
 module.exports = app;
-
