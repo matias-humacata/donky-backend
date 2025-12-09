@@ -62,15 +62,14 @@ const TallerConfigSchema = new Schema({
 TallerConfigSchema.index({}, { unique: true });
 
 // Validación: inicio < fin
-TallerConfigSchema.pre("save", function(next) {
+TallerConfigSchema.pre("save", function() {
   if (this.vacaciones && this.vacaciones.length) {
     for (const v of this.vacaciones) {
       if (v.inicio > v.fin) {
-        return next(new Error("El inicio de vacaciones no puede ser mayor que el fin."));
+        throw new Error("El inicio de vacaciones no puede ser mayor que el fin.");
       }
     }
   }
-  next();
 });
 
 module.exports = mongoose.model("TallerConfig", TallerConfigSchema);
