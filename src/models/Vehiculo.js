@@ -49,16 +49,13 @@ const VehiculoSchema = new Schema({
 // ===============================
 // PRE-SAVE CORRECTO (sin errores)
 // ===============================
-VehiculoSchema.pre('save', function(next) {
-
+VehiculoSchema.pre('save', function() {
   if (this.patente) {
     this.patente = this.patente
       .toUpperCase()
       .replace(/\s+/g, "")
       .replace(/-/g, "");
   }
-
-  next(); // <-- ahora SÍ existe
 });
 
 module.exports = mongoose.model('Vehiculo', VehiculoSchema);
