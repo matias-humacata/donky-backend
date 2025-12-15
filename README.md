@@ -20,6 +20,7 @@ Copiar `.env.example` a `.env` y completar los valores:
 - `FRONTEND_URL` - URL del frontend (para CORS)
 - `N8N_WEBHOOK_APPROVAL` - Webhook opcional de n8n para notificaciones al confirmar turnos
 - `NODE_ENV` - `development` o `production`
+- `JWT_SECRET` - Clave secreta para firmar y validar JWT (obligatoria en producción)
 
 ## Instalación
 

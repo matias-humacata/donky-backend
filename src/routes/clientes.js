@@ -7,25 +7,33 @@ const Turno = require('../models/Turno');
 // Crear cliente
 router.post('/', async (req, res) => {
   try {
-    const { nombre, telefono } = req.body;
+    const { nombre, email, telefono } = req.body;
 
-    if (!nombre || !telefono) {
-      return res.status(400).json({ error: "Nombre y teléfono son obligatorios" });
+    if (!nombre || !email) {
+      return res.status(400).json({ error: "Nombre y email son obligatorios" });
     }
 
-    // Intentar guardar
-    const cliente = new Cliente(req.body);
+    // Normalizar email
+    const payload = {
+      nombre,
+      email: email.toLowerCase().trim(),
+      telefono,
+      password: req.body.password
+    };
+
+    const cliente = new Cliente(payload);
     await cliente.save();
 
     res.status(201).json(cliente);
 
   } catch (err) {
 
-    // Error de clave duplicada
+    // Error de clave duplicada (por ejemplo, email único)
     if (err.code === 11000) {
+      const campo = Object.keys(err.keyValue || {})[0] || 'campo';
       return res.status(409).json({
-        error: "El teléfono ya está registrado",
-        campo: Object.keys(err.keyValue)[0]
+        error: `El valor ya está registrado para ${campo}`,
+        campo
       });
     }
 
@@ -126,7 +134,11 @@ router.patch('/:id', async (req, res) => {
     res.json(cliente);
   } catch (err) {
     if (err.code === 11000) {
-      return res.status(409).json({ error: 'El teléfono ya está registrado' });
+      const campo = Object.keys(err.keyValue || {})[0] || 'campo';
+      return res.status(409).json({
+        error: `El valor ya está registrado para ${campo}`,
+        campo
+      });
     }
     res.status(400).json({ error: err.message });
   }
