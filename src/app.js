@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
+const authRoute = require('./routes/auth');
 
 // Rutas
 const clientesRoute = require('./routes/clientes');
@@ -28,6 +29,7 @@ app.use('/api/clientes', clientesRoute);
 app.use('/api/vehiculos', vehiculosRoute);
 app.use('/api/turnos', turnosRoute);
 app.use('/api/taller', tallerConfigRoute);
+app.use('/api/auth', authRoute);
 
 // Health check
 app.get('/', (req, res) => {

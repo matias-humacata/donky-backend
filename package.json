@@ -4,12 +4,10 @@
   "description": "Backend del sistema de gestión de turnos del taller Donky",
   "main": "src/index.js",
   "type": "commonjs",
-
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js"
   },
-
   "keywords": [
     "taller",
     "turnos",
@@ -18,23 +16,21 @@
     "express",
     "mongoose"
   ],
-
   "author": "Matías Huma",
   "license": "MIT",
-
   "engines": {
     "node": ">=18.x"
   },
-
   "dependencies": {
     "axios": "^1.13.2",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
-    "morgan": "^1.10.0",
-    "mongoose": "^9.0.0"
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.0.0",
+    "morgan": "^1.10.0"
   },
-
   "devDependencies": {
     "nodemon": "^3.1.11"
   }

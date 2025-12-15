@@ -6,21 +6,21 @@ const TurnoSchema = new Schema({
     type: Schema.Types.ObjectId,
     ref: 'Cliente',
     required: true,
-    index: true
+    
   },
 
   vehiculo: {
     type: Schema.Types.ObjectId,
     ref: 'Vehiculo',
     required: true,
-    index: true
+    
   },
 
   // Fecha del turno ya normalizada por backend a horario Argentina
   fecha: {
     type: Date,
     required: true,
-    index: true
+    
   },
 
   // Duración en minutos
@@ -36,7 +36,7 @@ const TurnoSchema = new Schema({
     type: String,
     enum: ["pendiente", "confirmado", "rechazado", "cancelado"],
     default: "pendiente",
-    index: true
+    
   },
 
   // FECHAS DE AUDITORÍA
@@ -50,7 +50,7 @@ const TurnoSchema = new Schema({
   notificado: {
     type: Boolean,
     default: false,
-    index: true
+    
   }
 });
 
