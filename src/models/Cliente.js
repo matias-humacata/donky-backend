@@ -29,7 +29,4 @@ const clienteSchema = new mongoose.Schema(
   }
 );
 
-// Índice explícito por email para búsquedas frecuentes
-clienteSchema.index({ email: 1 });
-
 module.exports = mongoose.model('Cliente', clienteSchema);
