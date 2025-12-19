@@ -1,0 +1,706 @@
+{
+	"info": {
+		"_postman_id": "donky-backend-api",
+		"name": "Donky Backend API",
+		"description": "Colección completa de endpoints para pruebas del backend del sistema Donky",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health Check",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/",
+							"host": ["{{base_url}}"],
+							"path": [""]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Registro",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    pm.test(\"Status code is 201\", function () {",
+									"        pm.response.to.have.status(201);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"nombre\": \"Juan Pérez\",\n    \"email\": \"juan@example.com\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/register",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "register"]
+						}
+					}
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"auth_token\", jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"juan@example.com\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Clientes",
+			"item": [
+				{
+					"name": "Crear Cliente",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"cliente_id\", jsonData._id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"nombre\": \"María García\",\n    \"email\": \"maria@example.com\",\n    \"telefono\": \"+5491123456789\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/clientes",
+							"host": ["{{base_url}}"],
+							"path": ["api", "clientes"]
+						}
+					}
+				},
+				{
+					"name": "Listar Clientes",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/clientes",
+							"host": ["{{base_url}}"],
+							"path": ["api", "clientes"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Cliente por ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/clientes/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "clientes", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{cliente_id}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Cliente",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"nombre\": \"María García Actualizada\",\n    \"telefono\": \"+5491198765432\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/clientes/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "clientes", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{cliente_id}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Bloquear Notificaciones",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/clientes/:id/block",
+							"host": ["{{base_url}}"],
+							"path": ["api", "clientes", ":id", "block"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{cliente_id}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Desbloquear Notificaciones",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/clientes/:id/unblock",
+							"host": ["{{base_url}}"],
+							"path": ["api", "clientes", ":id", "unblock"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{cliente_id}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Eliminar Cliente",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/clientes/:id?force=true",
+							"host": ["{{base_url}}"],
+							"path": ["api", "clientes", ":id"],
+							"query": [
+								{
+									"key": "force",
+									"value": "true",
+									"description": "Eliminar en cascada vehículos y turnos"
+								}
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{cliente_id}}"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Vehículos",
+			"item": [
+				{
+					"name": "Crear Vehículo",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"vehiculo_id\", jsonData._id);",
+									"    pm.environment.set(\"patente\", jsonData.patente);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"cliente\": \"{{cliente_id}}\",\n    \"marca\": \"Ford\",\n    \"modelo\": \"Fiesta\",\n    \"patente\": \"ABC123\",\n    \"kmActual\": 50000\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/vehiculos",
+							"host": ["{{base_url}}"],
+							"path": ["api", "vehiculos"]
+						}
+					}
+				},
+				{
+					"name": "Listar Vehículos",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/vehiculos?page=1&limit=20",
+							"host": ["{{base_url}}"],
+							"path": ["api", "vehiculos"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "20"
+								},
+								{
+									"key": "cliente",
+									"value": "{{cliente_id}}",
+									"disabled": true
+								},
+								{
+									"key": "patente",
+									"value": "ABC123",
+									"disabled": true
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Obtener Vehículo por ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/vehiculos/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "vehiculos", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{vehiculo_id}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Historial por Patente",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/vehiculos/:patente/historial",
+							"host": ["{{base_url}}"],
+							"path": ["api", "vehiculos", ":patente", "historial"],
+							"variable": [
+								{
+									"key": "patente",
+									"value": "{{patente}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Vehículo",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"marca\": \"Ford\",\n    \"modelo\": \"Fiesta 2023\",\n    \"kmActual\": 55000\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/vehiculos/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "vehiculos", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{vehiculo_id}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Eliminar Vehículo",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/vehiculos/:id?force=true",
+							"host": ["{{base_url}}"],
+							"path": ["api", "vehiculos", ":id"],
+							"query": [
+								{
+									"key": "force",
+									"value": "true",
+									"description": "Eliminar turnos asociados"
+								}
+							],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{vehiculo_id}}"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Turnos",
+			"item": [
+				{
+					"name": "Crear Turno",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"turno_id\", jsonData._id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"cliente\": \"{{cliente_id}}\",\n    \"vehiculo\": \"{{vehiculo_id}}\",\n    \"fecha\": \"2024-12-20T10:00:00\",\n    \"duracionMin\": 60\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/turnos",
+							"host": ["{{base_url}}"],
+							"path": ["api", "turnos"]
+						}
+					}
+				},
+				{
+					"name": "Listar Turnos",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/turnos?page=1&limit=50",
+							"host": ["{{base_url}}"],
+							"path": ["api", "turnos"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "50"
+								},
+								{
+									"key": "estado",
+									"value": "pendiente",
+									"disabled": true
+								},
+								{
+									"key": "cliente",
+									"value": "{{cliente_id}}",
+									"disabled": true
+								},
+								{
+									"key": "vehiculo",
+									"value": "{{vehiculo_id}}",
+									"disabled": true
+								},
+								{
+									"key": "desde",
+									"value": "2024-01-01",
+									"disabled": true
+								},
+								{
+									"key": "hasta",
+									"value": "2024-12-31",
+									"disabled": true
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Turnos Pendientes",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/turnos/pendientes",
+							"host": ["{{base_url}}"],
+							"path": ["api", "turnos", "pendientes"]
+						}
+					}
+				},
+				{
+					"name": "Obtener Turno por ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/turnos/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "turnos", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{turno_id}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Aprobar Turno",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/turnos/:id/aprobar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "turnos", ":id", "aprobar"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{turno_id}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Rechazar Turno",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/turnos/:id/rechazar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "turnos", ":id", "rechazar"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{turno_id}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Cancelar Turno",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/turnos/:id/cancelar",
+							"host": ["{{base_url}}"],
+							"path": ["api", "turnos", ":id", "cancelar"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{turno_id}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Actualizar Turno",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"fecha\": \"2024-12-21T14:00:00\",\n    \"duracionMin\": 90\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/turnos/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "turnos", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "{{turno_id}}"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Configuración Taller",
+			"item": [
+				{
+					"name": "Obtener Configuración",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/taller",
+							"host": ["{{base_url}}"],
+							"path": ["api", "taller"]
+						}
+					}
+				},
+				{
+					"name": "Crear/Actualizar Configuración",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"horarioApertura\": \"09:00\",\n    \"horarioCierre\": \"18:00\",\n    \"diasLaborales\": [\"lunes\", \"martes\", \"miercoles\", \"jueves\", \"viernes\"],\n    \"diasNoLaborables\": [],\n    \"vacaciones\": []\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/taller",
+							"host": ["{{base_url}}"],
+							"path": ["api", "taller"]
+						}
+					}
+				},
+				{
+					"name": "Eliminar Día No Laborable",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/taller/diasNoLaborables/:fecha",
+							"host": ["{{base_url}}"],
+							"path": ["api", "taller", "diasNoLaborables", ":fecha"],
+							"variable": [
+								{
+									"key": "fecha",
+									"value": "2024-12-25"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Eliminar Vacaciones",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/taller/vacaciones/:inicio/:fin",
+							"host": ["{{base_url}}"],
+							"path": ["api", "taller", "vacaciones", ":inicio", ":fin"],
+							"variable": [
+								{
+									"key": "inicio",
+									"value": "2024-12-20"
+								},
+								{
+									"key": "fin",
+									"value": "2024-12-31"
+								}
+							]
+						}
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:4000",
+			"type": "string"
+		}
+	]
+}
+
