@@ -1,13 +1,17 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
+
 const Vehiculo = require('../models/Vehiculo');
 const Cliente = require('../models/Cliente');
 const Turno = require('../models/Turno');
 
+// ==========================
 // Crear vehículo
+// ==========================
 router.post('/', async (req, res) => {
   try {
-    const { cliente, marca, modelo, patente } = req.body;
+    const { cliente, marca, modelo, patente, anio } = req.body;
 
     if (!cliente || !marca || !modelo || !patente) {
       return res.status(400).json({
@@ -15,61 +19,51 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Verificar cliente existente
+    if (!mongoose.Types.ObjectId.isValid(cliente)) {
+      return res.status(400).json({ error: "ID de cliente inválido" });
+    }
+
     const existeCliente = await Cliente.findById(cliente);
     if (!existeCliente) {
       return res.status(404).json({ error: "El cliente no existe" });
     }
 
-    const vehiculo = new Vehiculo(req.body);
+    const vehiculo = new Vehiculo({
+      cliente,
+      marca,
+      modelo,
+      patente: patente.toUpperCase().replace(/\s|-/g, ''),
+      anio
+    });
+
     await vehiculo.save();
 
-    res.status(201).json(vehiculo);
+    res.status(201).json({ ok: true, data: vehiculo });
 
   } catch (err) {
-    console.error("Error creando vehículo:", err);
-
     if (err.code === 11000) {
-      return res.status(409).json({
-        error: "La patente ya está registrada en el sistema"
-      });
+      return res.status(409).json({ error: "La patente ya está registrada" });
     }
-
-    res.status(400).json({ error: err.message });
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 });
 
-// Historial por patente
-router.get('/:patente/historial', async (req, res) => {
-  try {
-    const vehiculo = await Vehiculo.findOne({ patente: req.params.patente })
-      .populate("cliente");
-
-    if (!vehiculo) {
-      return res.status(404).json({ error: "Vehículo no encontrado" });
-    }
-
-    res.json(vehiculo);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-module.exports = router;
-
 // ==========================
-// Endpoints adicionales para Vehículos
+// Listar vehículos
 // ==========================
-
-// Listar vehículos con paginación y filtros
 router.get('/', async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.max(1, Math.min(100, parseInt(req.query.limit) || 20));
 
     const filter = {};
-    if (req.query.cliente) filter.cliente = req.query.cliente;
-    if (req.query.patente) filter.patente = req.query.patente.toUpperCase().replace(/\s|-/g, '');
+    if (req.query.cliente && mongoose.Types.ObjectId.isValid(req.query.cliente)) {
+      filter.cliente = req.query.cliente;
+    }
+
+    if (req.query.patente) {
+      filter.patente = req.query.patente.toUpperCase().replace(/\s|-/g, '');
+    }
 
     const total = await Vehiculo.countDocuments(filter);
     const data = await Vehiculo.find(filter)
@@ -84,67 +78,118 @@ router.get('/', async (req, res) => {
   }
 });
 
+// ==========================
 // Obtener vehículo por ID
-router.get('/:id', async (req, res) => {
+// ==========================
+router.get('/id/:id', async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "ID inválido" });
+    }
+
     const veh = await Vehiculo.findById(req.params.id).populate('cliente');
-    if (!veh) return res.status(404).json({ error: 'Vehículo no encontrado' });
+    if (!veh) return res.status(404).json({ error: "Vehículo no encontrado" });
+
     res.json(veh);
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Actualizar vehículo
-router.patch('/:id', async (req, res) => {
+// ==========================
+// Historial por patente
+// ==========================
+router.get('/patente/:patente/historial', async (req, res) => {
   try {
-    const allowed = ['marca', 'modelo', 'kmActual', 'mantenimientos', 'patente', 'cliente'];
+    const patente = req.params.patente.toUpperCase().replace(/\s|-/g, '');
+
+    const vehiculo = await Vehiculo.findOne({ patente })
+      .populate('cliente');
+
+    if (!vehiculo) {
+      return res.status(404).json({ error: "Vehículo no encontrado" });
+    }
+
+    res.json(vehiculo);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================
+// Actualizar vehículo
+// ==========================
+router.patch('/id/:id', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "ID inválido" });
+    }
+
+    const allowed = ['marca', 'modelo', 'kmActual', 'mantenimientos', 'patente', 'cliente', 'anio'];
     const updates = {};
+
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];
     }
 
     if (updates.cliente) {
+      if (!mongoose.Types.ObjectId.isValid(updates.cliente)) {
+        return res.status(400).json({ error: "ID de cliente inválido" });
+      }
+
       const existe = await Cliente.findById(updates.cliente);
-      if (!existe) return res.status(404).json({ error: 'Cliente no existe' });
+      if (!existe) return res.status(404).json({ error: "Cliente no existe" });
     }
 
     const veh = await Vehiculo.findById(req.params.id);
-    if (!veh) return res.status(404).json({ error: 'Vehículo no encontrado' });
+    if (!veh) return res.status(404).json({ error: "Vehículo no encontrado" });
 
     Object.assign(veh, updates);
     await veh.save();
 
-    res.json(veh);
+    res.json({ ok: true, data: veh });
   } catch (err) {
     if (err.code === 11000) {
-      return res.status(409).json({ error: 'La patente ya está registrada' });
+      return res.status(409).json({ error: "La patente ya está registrada" });
     }
-    res.status(400).json({ error: err.message });
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 });
 
-// Eliminar vehículo (controlando turnos futuros). Si ?force=true borra turnos futuros.
-router.delete('/:id', async (req, res) => {
+// ==========================
+// Eliminar vehículo
+// ==========================
+router.delete('/id/:id', async (req, res) => {
   try {
-    const vehId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "ID inválido" });
+    }
+
     const force = req.query.force === 'true';
 
-    const turnoFuturo = await Turno.exists({ vehiculo: vehId, fecha: { $gte: new Date() }, estado: { $in: ['pendiente', 'confirmado'] } });
+    const turnoFuturo = await Turno.exists({
+      vehiculo: req.params.id,
+      fecha: { $gte: new Date() },
+      estado: { $in: ['pendiente', 'confirmado'] }
+    });
 
     if (turnoFuturo && !force) {
-      return res.status(409).json({ error: 'El vehículo tiene turnos futuros. Use ?force=true para eliminar en cascada.' });
+      return res.status(409).json({
+        error: "El vehículo tiene turnos futuros. Use ?force=true"
+      });
     }
 
     if (force) {
-      await Turno.deleteMany({ vehiculo: vehId });
+      await Turno.deleteMany({ vehiculo: req.params.id });
     }
 
-    const veh = await Vehiculo.findByIdAndDelete(vehId);
-    if (!veh) return res.status(404).json({ error: 'Vehículo no encontrado' });
+    const veh = await Vehiculo.findByIdAndDelete(req.params.id);
+    if (!veh) return res.status(404).json({ error: "Vehículo no encontrado" });
 
-    res.json({ message: 'Vehículo eliminado', veh });
+    res.json({ ok: true, message: "Vehículo eliminado" });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 });
+
+module.exports = router;

@@ -2,28 +2,28 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const TurnoSchema = new Schema({
+
   cliente: {
     type: Schema.Types.ObjectId,
     ref: 'Cliente',
-    required: true,
-    
+    required: true
   },
 
   vehiculo: {
     type: Schema.Types.ObjectId,
     ref: 'Vehiculo',
-    required: true,
-    
+    required: true
   },
 
-  // Fecha del turno ya normalizada por backend a horario Argentina
   fecha: {
     type: Date,
     required: true,
-    
+    validate: {
+      validator: v => v >= new Date(),
+      message: 'No se pueden crear turnos en el pasado'
+    }
   },
 
-  // Duración en minutos
   duracionMin: {
     type: Number,
     default: 60,
@@ -31,45 +31,47 @@ const TurnoSchema = new Schema({
     max: 600
   },
 
-  // Estado del turno
   estado: {
     type: String,
-    enum: ["pendiente", "confirmado", "rechazado", "cancelado"],
-    default: "pendiente",
-    
+    enum: ['pendiente', 'confirmado', 'rechazado', 'cancelado'],
+    default: 'pendiente'
   },
-
-  // FECHAS DE AUDITORÍA
-  creadoEn: { type: Date, default: Date.now },
 
   aprobadoEn: { type: Date, default: null },
   rechazadoEn: { type: Date, default: null },
   canceladoEn: { type: Date, default: null },
 
-  // Para evitar notificar dos veces a n8n
   notificado: {
     type: Boolean,
-    default: false,
-    
+    default: false
   }
-});
+
+}, { timestamps: true });
 
 
-// ======================================================
-// ÍNDICES recomendados para rendimiento
-// ======================================================
-
-// 📌 Optimiza búsqueda de turnos por día
+// ===============================
+// ÍNDICES
+// ===============================
 TurnoSchema.index({ fecha: 1 });
-
-// 📌 Cliente + fecha (rápido para historial por cliente)
 TurnoSchema.index({ cliente: 1, fecha: -1 });
-
-// 📌 Vehículo + fecha (rápido para historial de vehículo)
 TurnoSchema.index({ vehiculo: 1, fecha: -1 });
-
-// 📌 Estado + fecha (ver pendientes/confirmados ordenados)
 TurnoSchema.index({ estado: 1, fecha: 1 });
 
+// Evita doble turno mismo vehículo + mismo horario
+TurnoSchema.index({ vehiculo: 1, fecha: 1 }, { unique: true });
+
+
+// ===============================
+// HOOKS DE CONSISTENCIA
+// ===============================
+TurnoSchema.pre('save', function () {
+  if (this.isModified('estado')) {
+    const now = new Date();
+
+    if (this.estado === 'confirmado') this.aprobadoEn = now;
+    if (this.estado === 'rechazado') this.rechazadoEn = now;
+    if (this.estado === 'cancelado') this.canceladoEn = now;
+  }
+});
 
 module.exports = mongoose.model('Turno', TurnoSchema);

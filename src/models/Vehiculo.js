@@ -10,7 +10,6 @@ const ItemMantenimiento = new Schema({
   frecuenciaMeses: { type: Number, min: 0 }
 }, { _id: false });
 
-// REGEX patente argentina
 const PATENTE_REGEX = /^[A-Z]{2}[0-9]{3}[A-Z]{2}$|^[A-Z]{3}[0-9]{3}$/;
 
 const VehiculoSchema = new Schema({
@@ -24,8 +23,6 @@ const VehiculoSchema = new Schema({
   patente: { 
     type: String,
     required: true,
-    unique: true,
-    index: true,
     uppercase: true,
     trim: true,
     validate: {
@@ -34,11 +31,27 @@ const VehiculoSchema = new Schema({
     }
   },
 
-  marca: { type: String, trim: true },
-  modelo: { type: String, trim: true },
+  marca: { 
+    type: String, 
+    required: true, 
+    trim: true 
+  },
+
+  modelo: { 
+    type: String, 
+    required: true, 
+    trim: true 
+  },
+
+  anio: {
+    type: Number,
+    min: 1900,
+    max: new Date().getFullYear() + 1
+  },
 
   kmActual: { 
     type: Number,
+    default: 0,
     min: [0, "El kilometraje no puede ser negativo"]
   },
 
@@ -46,10 +59,11 @@ const VehiculoSchema = new Schema({
 
 }, { timestamps: true });
 
-// ===============================
-// PRE-SAVE CORRECTO (sin errores)
-// ===============================
-VehiculoSchema.pre('save', function() {
+// Índice único
+VehiculoSchema.index({ patente: 1 }, { unique: true });
+
+// Normalización final
+VehiculoSchema.pre('save', function () {
   if (this.patente) {
     this.patente = this.patente
       .toUpperCase()
