@@ -1,34 +1,34 @@
 const express = require('express');
 const router = express.Router();
+
 const Cliente = require('../models/Cliente');
 const Vehiculo = require('../models/Vehiculo');
 const Turno = require('../models/Turno');
 
-// Crear cliente
+// ==========================================================
+//  POST /api/clientes → Crear cliente
+// ==========================================================
 router.post('/', async (req, res) => {
   try {
-    const { nombre, email, telefono } = req.body;
+    const { nombre, telefono } = req.body;
 
-    if (!nombre || !email) {
-      return res.status(400).json({ error: "Nombre y email son obligatorios" });
+    if (!nombre || !telefono) {
+      return res.status(400).json({
+        error: "Nombre y teléfono son obligatorios"
+      });
     }
 
-    // Normalizar email
-    const payload = {
-      nombre,
-      email: email.toLowerCase().trim(),
-      telefono,
-      password: req.body.password
-    };
+    const cliente = new Cliente({
+      nombre: nombre.trim(),
+      telefono: telefono.trim()
+    });
 
-    const cliente = new Cliente(payload);
     await cliente.save();
 
-    res.status(201).json(cliente);
+    return res.status(201).json(cliente);
 
   } catch (err) {
-
-    // Error de clave duplicada (por ejemplo, email único)
+    // Error de clave duplicada
     if (err.code === 11000) {
       const campo = Object.keys(err.keyValue || {})[0] || 'campo';
       return res.status(409).json({
@@ -37,23 +37,84 @@ router.post('/', async (req, res) => {
       });
     }
 
-    res.status(400).json({ error: err.message });
+    return res.status(400).json({ error: err.message });
   }
 });
 
-
-// Obtener clientes (sin console.log masivo)
+// ==========================================================
+//  GET /api/clientes → Listar clientes
+// ==========================================================
 router.get('/', async (req, res) => {
   try {
     const clientes = await Cliente.find().sort({ createdAt: -1 });
-    res.json(clientes);
+    return res.json(clientes);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
+// ==========================================================
+//  GET /api/clientes/:id → Obtener cliente por ID
+// ==========================================================
+router.get('/:id', async (req, res) => {
+  try {
+    const cliente = await Cliente.findById(req.params.id);
+    if (!cliente) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+    return res.json(cliente);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
 
-// Bloquear notificaciones (STOP)
+// ==========================================================
+//  PATCH /api/clientes/:id → Actualizar cliente
+// ==========================================================
+router.patch('/:id', async (req, res) => {
+  try {
+    const allowed = ['nombre', 'telefono'];
+    const updates = {};
+
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) {
+        updates[key] = req.body[key].trim();
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({
+        error: 'No hay campos válidos para actualizar'
+      });
+    }
+
+    const cliente = await Cliente.findByIdAndUpdate(
+      req.params.id,
+      updates,
+      { new: true, runValidators: true }
+    );
+
+    if (!cliente) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+
+    return res.json(cliente);
+
+  } catch (err) {
+    if (err.code === 11000) {
+      const campo = Object.keys(err.keyValue || {})[0] || 'campo';
+      return res.status(409).json({
+        error: `El valor ya está registrado para ${campo}`,
+        campo
+      });
+    }
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// ==========================================================
+//  PATCH /api/clientes/:id/block → Bloquear WhatsApp
+// ==========================================================
 router.patch('/:id/block', async (req, res) => {
   try {
     const cliente = await Cliente.findByIdAndUpdate(
@@ -66,14 +127,16 @@ router.patch('/:id/block', async (req, res) => {
       return res.status(404).json({ error: "Cliente no encontrado" });
     }
 
-    res.json(cliente);
+    return res.json(cliente);
 
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    return res.status(400).json({ error: err.message });
   }
 });
 
-// Desbloquear notificaciones
+// ==========================================================
+//  PATCH /api/clientes/:id/unblock → Desbloquear WhatsApp
+// ==========================================================
 router.patch('/:id/unblock', async (req, res) => {
   try {
     const cliente = await Cliente.findByIdAndUpdate(
@@ -86,65 +149,16 @@ router.patch('/:id/unblock', async (req, res) => {
       return res.status(404).json({ error: "Cliente no encontrado" });
     }
 
-    res.json(cliente);
+    return res.json(cliente);
 
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    return res.status(400).json({ error: err.message });
   }
 });
 
-module.exports = router;
-
-// ==========================
-// Endpoints adicionales
-// ==========================
-
-// Obtener cliente por ID
-router.get('/:id', async (req, res) => {
-  try {
-    const cliente = await Cliente.findById(req.params.id);
-    if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
-    res.json(cliente);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// Actualizar cliente (nombre, telefono)
-router.patch('/:id', async (req, res) => {
-  try {
-    const allowed = ['nombre', 'telefono'];
-    const updates = {};
-    for (const key of allowed) {
-      if (req.body[key] !== undefined) updates[key] = req.body[key];
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return res.status(400).json({ error: 'No hay campos válidos para actualizar' });
-    }
-
-    const cliente = await Cliente.findByIdAndUpdate(
-      req.params.id,
-      updates,
-      { new: true, runValidators: true }
-    );
-
-    if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
-
-    res.json(cliente);
-  } catch (err) {
-    if (err.code === 11000) {
-      const campo = Object.keys(err.keyValue || {})[0] || 'campo';
-      return res.status(409).json({
-        error: `El valor ya está registrado para ${campo}`,
-        campo
-      });
-    }
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// Eliminar cliente (opcional: force=true para borrar vehículos y turnos asociados)
+// ==========================================================
+//  DELETE /api/clientes/:id → Eliminar cliente
+// ==========================================================
 router.delete('/:id', async (req, res) => {
   try {
     const clienteId = req.params.id;
@@ -155,7 +169,7 @@ router.delete('/:id', async (req, res) => {
 
     if ((tieneVehiculos || tieneTurnos) && !force) {
       return res.status(409).json({
-        error: 'El cliente tiene vehículos o turnos asociados. Use ?force=true para eliminar en cascada.'
+        error: 'El cliente tiene vehículos o turnos asociados. Use ?force=true'
       });
     }
 
@@ -165,11 +179,15 @@ router.delete('/:id', async (req, res) => {
     }
 
     const cliente = await Cliente.findByIdAndDelete(clienteId);
-    if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
+    if (!cliente) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
 
-    res.json({ message: 'Cliente eliminado', cliente });
+    return res.json({ message: 'Cliente eliminado', cliente });
+
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    return res.status(400).json({ error: err.message });
   }
 });
 
+module.exports = router;

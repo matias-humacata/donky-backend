@@ -5,12 +5,13 @@ const clienteSchema = new mongoose.Schema(
   {
     nombre: { type: String, required: true, trim: true },
     email: {
-      type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      trim: true
-    },
+  type: String,
+  required: false,      // ✅ ya no es obligatorio
+  unique: true,
+  lowercase: true,
+  trim: true,
+  sparse: true          // ⭐ permite unique + opcional
+},
     telefono: {
       type: String,
       required: false,
