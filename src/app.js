@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
+
 const authRoute = require('./routes/auth');
 
 // Rutas
@@ -8,11 +9,15 @@ const clientesRoute = require('./routes/clientes');
 const vehiculosRoute = require('./routes/vehiculos');
 const turnosRoute = require('./routes/turnos');
 const tallerConfigRoute = require('./routes/tallerConfig');
+const metricasRoutes = require('./routes/metricas');
 
 const app = express();
 
-// Middlewares base
-// Usar morgan sólo fuera de producción para evitar logs excesivos en prod
+/* ======================================================
+   MIDDLEWARES BASE
+   ====================================================== */
+
+// Logs (solo fuera de producción)
 if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
 }
@@ -24,27 +29,40 @@ app.use(cors({
 // Seguridad: limitar tamaño JSON
 app.use(express.json({ limit: '1mb' }));
 
-// Rutas API
+/* ======================================================
+   RUTAS API
+   ====================================================== */
+
+app.use('/api/auth', authRoute);
 app.use('/api/clientes', clientesRoute);
 app.use('/api/vehiculos', vehiculosRoute);
 app.use('/api/turnos', turnosRoute);
 app.use('/api/taller', tallerConfigRoute);
-app.use('/api/auth', authRoute);
+app.use('/api/metricas', metricasRoutes);
 
-// Health check
+/* ======================================================
+   HEALTH CHECK
+   ====================================================== */
+
 app.get('/', (req, res) => {
-  res.json({ status: "API del Taller Donking funcionando 🚗" });
+  res.json({ status: 'API del Taller Donking funcionando 🚗' });
 });
 
-// ❗ Rutas inexistentes (IMPORTANTE: incluir next)
-app.use((req, res, next) => {
-  res.status(404).json({ error: "Ruta no encontrada" });
+/* ======================================================
+   404 — RUTAS INEXISTENTES
+   ====================================================== */
+
+app.use((req, res) => {
+  res.status(404).json({ error: 'Ruta no encontrada' });
 });
 
-// ❗ Middleware global de errores (IMPORTANTE: 4 parámetros)
+/* ======================================================
+   ERROR HANDLER GLOBAL
+   ====================================================== */
+
 app.use((err, req, res, next) => {
-  console.error("🔥 Error global:", err);
-  res.status(500).json({ error: "Error interno del servidor" });
+  console.error('🔥 Error global:', err);
+  res.status(500).json({ error: 'Error interno del servidor' });
 });
 
 module.exports = app;

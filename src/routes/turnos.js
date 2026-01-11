@@ -6,6 +6,19 @@ const Turno = require('../models/Turno');
 const Cliente = require('../models/Cliente');
 const Vehiculo = require('../models/Vehiculo');
 
+const auth = require('../middlewares/auth');
+const requireRole = require('../middlewares/requireRole');
+
+/* ======================================================
+   🔥 STATE MACHINE (CENTRAL)
+   ====================================================== */
+const { cambiarEstado } = require('../domain/turnoStateMachine');
+
+console.log('🔥 ROUTER TURNOS CARGADO 🔥');
+
+/* ======================================================
+   UTILS / HELPERS
+   ====================================================== */
 const {
   parseTimeToMinutes,
   getMinutesOfDay,
@@ -15,9 +28,6 @@ const {
   loadConfig
 } = require('../services/turnoUtils');
 
-/* ======================================================
-   HELPERS
-   ====================================================== */
 const addMinutes = (date, mins) =>
   new Date(date.getTime() + mins * 60000);
 
@@ -29,36 +39,49 @@ const toArgentina = (value) => {
   );
 };
 
+async function validarClienteYVehiculo(clienteId, vehiculoId) {
+  const cliente = await Cliente.findById(clienteId);
+  if (!cliente) throw new Error('Cliente no existe');
+  if (cliente.activo === false) throw new Error('Cliente desactivado');
+
+  const vehiculo = await Vehiculo.findById(vehiculoId);
+  if (!vehiculo) throw new Error('Vehículo no existe');
+  if (vehiculo.activo === false) throw new Error('Vehículo desactivado');
+
+  if (vehiculo.cliente.toString() !== cliente._id.toString()) {
+    throw new Error('El vehículo no pertenece al cliente');
+  }
+
+  return { cliente, vehiculo };
+}
+
 /* ======================================================
    VALIDACIÓN CENTRALIZADA DE TURNO
    ====================================================== */
 async function validarTurno({ fecha, duracionMin, excluirTurnoId = null }) {
   const config = await loadConfig();
 
-  // Vacaciones
   for (const v of config.vacaciones || []) {
     const ini = dateOnly(new Date(v.inicio));
     const fin = dateOnly(new Date(v.fin));
-    if (fecha >= ini && fecha <= fin) {
+    const diaTurno = dateOnly(fecha);
+    if (diaTurno >= ini && diaTurno <= fin) {
       throw new Error('El taller está de vacaciones en esa fecha');
     }
   }
 
-  // Días no laborables
   for (const d of config.diasNoLaborables || []) {
     if (isSameDay(new Date(d), fecha)) {
       throw new Error('El taller no atiende ese día');
     }
   }
 
-  // Día laboral
   const dias = ['domingo','lunes','martes','miercoles','jueves','viernes','sabado'];
   const diaSemana = dias[fecha.getDay()];
   if (!config.diasLaborales.includes(diaSemana)) {
     throw new Error(`El taller no trabaja los días ${diaSemana}`);
   }
 
-  // Horario
   const apertura = parseTimeToMinutes(config.horarioApertura);
   const cierre = parseTimeToMinutes(config.horarioCierre);
 
@@ -69,7 +92,6 @@ async function validarTurno({ fecha, duracionMin, excluirTurnoId = null }) {
     throw new Error('La hora solicitada está fuera del horario de atención');
   }
 
-  // Solapamientos
   const inicioDia = dateOnly(fecha);
   const finDia = new Date(inicioDia.getTime() + 86400000);
 
@@ -100,23 +122,14 @@ async function validarTurno({ fecha, duracionMin, excluirTurnoId = null }) {
 router.post('/', async (req, res) => {
   try {
     const { cliente, vehiculo, fecha, duracionMin = 60 } = req.body;
-
     if (!cliente || !vehiculo || !fecha) {
       return res.status(400).json({ error: 'cliente, vehiculo y fecha son obligatorios' });
     }
 
-    if (!(await Cliente.exists({ _id: cliente }))) {
-      return res.status(404).json({ error: 'Cliente no existe' });
-    }
-
-    if (!(await Vehiculo.exists({ _id: vehiculo }))) {
-      return res.status(404).json({ error: 'Vehículo no existe' });
-    }
+    await validarClienteYVehiculo(cliente, vehiculo);
 
     const fechaAR = toArgentina(fecha);
-    if (!fechaAR) {
-      return res.status(400).json({ error: 'Fecha inválida' });
-    }
+    if (!fechaAR) return res.status(400).json({ error: 'Fecha inválida' });
 
     await validarTurno({ fecha: fechaAR, duracionMin });
 
@@ -140,110 +153,119 @@ router.post('/', async (req, res) => {
    ====================================================== */
 router.get('/pendientes', async (_, res) => {
   const data = await Turno.find({ estado: 'pendiente' })
-    .populate('cliente vehiculo')
+    .populate({ path: 'cliente', match: { activo: true } })
+    .populate({ path: 'vehiculo', match: { activo: true } })
     .sort({ fecha: 1 });
 
-  res.json(data);
+  res.json(data.filter(t => t.cliente && t.vehiculo));
 });
 
 /* ======================================================
-   GET /api/turnos — listado
+   PATCH /api/turnos/:id/aprobar (SOLO TALLER)
    ====================================================== */
-router.get('/', async (req, res) => {
-  const page = Math.max(1, +req.query.page || 1);
-  const limit = Math.min(100, +req.query.limit || 50);
+router.patch(
+  '/:id/aprobar',
+  auth,
+  requireRole(['taller']),
+  async (req, res) => {
+    try {
+      const turno = await Turno.findById(req.params.id).populate('cliente vehiculo');
+      if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
 
-  const filter = {};
-  ['estado','cliente','vehiculo'].forEach(k => {
-    if (req.query[k]) filter[k] = req.query[k];
-  });
+      if (!turno.cliente.activo || !turno.vehiculo.activo) {
+        return res.status(409).json({ error: 'Cliente o vehículo desactivado' });
+      }
 
-  if (req.query.desde || req.query.hasta) {
-    filter.fecha = {};
-    if (req.query.desde) filter.fecha.$gte = new Date(req.query.desde);
-    if (req.query.hasta) filter.fecha.$lte = new Date(req.query.hasta);
+      await cambiarEstado(turno, 'confirmado', {
+        actor: 'taller',
+        motivo: 'Aprobado por el taller'
+      });
+
+      if (process.env.N8N_WEBHOOK_APPROVAL) {
+        axios.post(process.env.N8N_WEBHOOK_APPROVAL, {
+          evento: 'turno_confirmado',
+          turno
+        }).catch(() => {});
+      }
+
+      res.json(turno);
+    } catch (err) {
+      res.status(409).json({ error: err.message });
+    }
   }
-
-  const total = await Turno.countDocuments(filter);
-  const data = await Turno.find(filter)
-    .populate('cliente vehiculo')
-    .sort({ fecha: 1 })
-    .skip((page - 1) * limit)
-    .limit(limit);
-
-  res.json({ data, meta: { total, page, limit } });
-});
+);
 
 /* ======================================================
-   PATCH /api/turnos/:id — actualizar
+   PATCH /api/turnos/:id/rechazar (SOLO TALLER)
    ====================================================== */
-router.patch('/:id', async (req, res) => {
+router.patch(
+  '/:id/rechazar',
+  auth,
+  requireRole(['taller']),
+  async (req, res) => {
+    try {
+      const turno = await Turno.findById(req.params.id);
+      if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
+
+      await cambiarEstado(turno, 'rechazado', {
+        actor: 'taller',
+        motivo: 'Rechazado por el taller'
+      });
+
+      res.json(turno);
+    } catch (err) {
+      res.status(409).json({ error: err.message });
+    }
+  }
+);
+
+/* ======================================================
+   PATCH /api/turnos/:id/cancelar (CLIENTE / TALLER)
+   ====================================================== */
+router.patch(
+  '/:id/cancelar',
+  auth,
+  requireRole(['cliente', 'taller']),
+  async (req, res) => {
+    try {
+      const turno = await Turno.findById(req.params.id);
+      if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
+
+      await cambiarEstado(turno, 'cancelado', {
+        actor: req.user.rol,
+        motivo: 'Cancelación desde API'
+      });
+
+      res.json(turno);
+    } catch (err) {
+      res.status(409).json({ error: err.message });
+    }
+  }
+);
+
+/* ======================================================
+   PATCH /api/turnos/:id/notificado
+   ====================================================== */
+router.patch('/:id/notificado', async (req, res) => {
   try {
     const turno = await Turno.findById(req.params.id);
     if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
 
-    const fecha = req.body.fecha ? toArgentina(req.body.fecha) : turno.fecha;
-    const duracionMin = req.body.duracionMin ?? turno.duracionMin;
-    const vehiculo = req.body.vehiculo ?? turno.vehiculo;
+    if (turno.estado === 'pendiente') {
+      return res.status(409).json({ error: 'No se puede notificar un turno pendiente' });
+    }
 
-    if (!fecha) return res.status(400).json({ error: 'Fecha inválida' });
+    if (turno.notificado === true) {
+      return res.json({ ok: true, turno });
+    }
 
-    await validarTurno({
-      fecha,
-      duracionMin,
-      excluirTurnoId: turno._id
-    });
+    turno.notificado = true;
+    await turno.save({ validateBeforeSave: false });
 
-    turno.fecha = fecha;
-    turno.duracionMin = duracionMin;
-    turno.vehiculo = vehiculo;
-
-    await turno.save();
-    res.json(turno);
-
-  } catch (err) {
-    res.status(409).json({ error: err.message });
+    res.json({ ok: true, turno });
+  } catch {
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
-});
-
-/* ======================================================
-   PATCH /api/turnos/:id/aprobar
-   ====================================================== */
-router.patch('/:id/aprobar', async (req, res) => {
-  const turno = await Turno.findById(req.params.id).populate('cliente vehiculo');
-  if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
-
-  turno.estado = 'confirmado';
-  turno.aprobadoEn = new Date();
-  turno.notificado = false;
-  await turno.save();
-
-  if (process.env.N8N_WEBHOOK_APPROVAL) {
-    axios.post(process.env.N8N_WEBHOOK_APPROVAL, {
-      evento: 'turno_confirmado',
-      turno
-    }).catch(() => {});
-  }
-
-  res.json(turno);
-});
-
-/* ======================================================
-   PATCH /api/turnos/:id/rechazar
-   ====================================================== */
-router.patch('/:id/rechazar', async (req, res) => {
-  const turno = await Turno.findById(req.params.id);
-  if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
-
-  if (turno.estado === 'confirmado') {
-    return res.status(409).json({ error: 'No se puede rechazar un turno confirmado' });
-  }
-
-  turno.estado = 'rechazado';
-  turno.rechazadoEn = new Date();
-  await turno.save();
-
-  res.json(turno);
 });
 
 module.exports = router;

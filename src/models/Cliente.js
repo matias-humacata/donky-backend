@@ -1,29 +1,58 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-const clienteSchema = new mongoose.Schema(
+const clienteSchema = new Schema(
   {
-    nombre: { type: String, required: true, trim: true },
+    nombre: {
+      type: String,
+      required: true,
+      trim: true
+    },
+
     email: {
-  type: String,
-  required: false,      // ✅ ya no es obligatorio
-  unique: true,
-  lowercase: true,
-  trim: true,
-  sparse: true          // ⭐ permite unique + opcional
-},
+      type: String,
+      required: false,
+      unique: true,
+      lowercase: true,
+      trim: true,
+      sparse: true
+    },
+
     telefono: {
       type: String,
       required: false,
       trim: true
-      // si en el futuro quieres que sea único, agrega: unique: true
     },
-    password: { type: String, required: false },
+
+    password: {
+      type: String,
+      required: false
+    },
+
     whatsappBlocked: {
       type: Boolean,
       default: false
     },
-    vehiculos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Vehiculo' }]
+
+    // ✅ NUEVO: soft delete
+    activo: {
+      type: Boolean,
+      default: true,
+      index: true
+    },
+
+    // 📌 opcional: auditoría
+    desactivadoEn: {
+      type: Date,
+      default: null
+    },
+
+    vehiculos: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Vehiculo'
+      }
+    ]
   },
   {
     timestamps: true
