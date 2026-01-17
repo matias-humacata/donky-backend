@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const axios = require('axios');
 
 const Turno = require('../models/Turno');
 const Cliente = require('../models/Cliente');
@@ -9,55 +8,41 @@ const Vehiculo = require('../models/Vehiculo');
 const auth = require('../middlewares/auth');
 const requireRole = require('../middlewares/requireRole');
 
-/* ======================================================
-   🔥 STATE MACHINE (CENTRAL)
-   ====================================================== */
 const { cambiarEstado } = require('../domain/turnoStateMachine');
 
-console.log('🔥 ROUTER TURNOS CARGADO 🔥');
-
-/* ======================================================
-   UTILS / HELPERS
-   ====================================================== */
 const {
   parseTimeToMinutes,
   getMinutesOfDay,
   dateOnly,
   isSameDay,
   overlaps,
-  loadConfig
+  loadConfig,
+  toArgentina
 } = require('../services/turnoUtils');
 
 const addMinutes = (date, mins) =>
   new Date(date.getTime() + mins * 60000);
 
-const toArgentina = (value) => {
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return null;
-  return new Date(
-    d.toLocaleString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' })
-  );
-};
-
+/* ======================================================
+   VALIDACIONES BASE
+====================================================== */
 async function validarClienteYVehiculo(clienteId, vehiculoId) {
   const cliente = await Cliente.findById(clienteId);
   if (!cliente) throw new Error('Cliente no existe');
-  if (cliente.activo === false) throw new Error('Cliente desactivado');
+  if (!cliente.activo) throw new Error('Cliente desactivado');
 
   const vehiculo = await Vehiculo.findById(vehiculoId);
   if (!vehiculo) throw new Error('Vehículo no existe');
-  if (vehiculo.activo === false) throw new Error('Vehículo desactivado');
+  if (!vehiculo.activo) throw new Error('Vehículo desactivado');
 
   if (vehiculo.cliente.toString() !== cliente._id.toString()) {
     throw new Error('El vehículo no pertenece al cliente');
   }
-
-  return { cliente, vehiculo };
 }
 
 /* ======================================================
-   VALIDACIÓN CENTRALIZADA DE TURNO
-   ====================================================== */
+   VALIDACIÓN CENTRAL DE TURNO
+====================================================== */
 async function validarTurno({ fecha, duracionMin, excluirTurnoId = null }) {
   const config = await loadConfig();
 
@@ -66,7 +51,7 @@ async function validarTurno({ fecha, duracionMin, excluirTurnoId = null }) {
     const fin = dateOnly(new Date(v.fin));
     const diaTurno = dateOnly(fecha);
     if (diaTurno >= ini && diaTurno <= fin) {
-      throw new Error('El taller está de vacaciones en esa fecha');
+      throw new Error('El taller está de vacaciones');
     }
   }
 
@@ -89,7 +74,7 @@ async function validarTurno({ fecha, duracionMin, excluirTurnoId = null }) {
   const endMin = startMin + duracionMin;
 
   if (startMin < apertura || endMin > cierre) {
-    throw new Error('La hora solicitada está fuera del horario de atención');
+    throw new Error('Horario fuera de atención');
   }
 
   const inicioDia = dateOnly(fecha);
@@ -111,26 +96,24 @@ async function validarTurno({ fecha, duracionMin, excluirTurnoId = null }) {
     const tIni = new Date(t.fecha);
     const tFin = addMinutes(tIni, t.duracionMin || 60);
     if (overlaps(inicio, fin, tIni, tFin)) {
-      throw new Error('Ya existe un turno reservado en ese horario');
+      throw new Error('Ya existe un turno en ese horario');
     }
   }
 }
 
 /* ======================================================
-   POST /api/turnos — Crear turno
-   ====================================================== */
+   POST /api/turnos
+====================================================== */
 router.post('/', async (req, res) => {
   try {
     const { cliente, vehiculo, fecha, duracionMin = 60 } = req.body;
     if (!cliente || !vehiculo || !fecha) {
-      return res.status(400).json({ error: 'cliente, vehiculo y fecha son obligatorios' });
+      return res.status(400).json({ error: 'Datos obligatorios faltantes' });
     }
 
     await validarClienteYVehiculo(cliente, vehiculo);
 
     const fechaAR = toArgentina(fecha);
-    if (!fechaAR) return res.status(400).json({ error: 'Fecha inválida' });
-
     await validarTurno({ fecha: fechaAR, duracionMin });
 
     const turno = await Turno.create({
@@ -142,130 +125,109 @@ router.post('/', async (req, res) => {
     });
 
     res.status(201).json(turno);
-
   } catch (err) {
     res.status(409).json({ error: err.message });
   }
 });
 
 /* ======================================================
-   GET /api/turnos/pendientes
-   ====================================================== */
-router.get('/pendientes', async (_, res) => {
-  const data = await Turno.find({ estado: 'pendiente' })
-    .populate({ path: 'cliente', match: { activo: true } })
-    .populate({ path: 'vehiculo', match: { activo: true } })
+   GET /api/turnos
+====================================================== */
+router.get('/', async (req, res) => {
+  const { patente } = req.query;
+  const ahora = toArgentina(new Date());
+
+  if (patente) {
+    const vehiculo = await Vehiculo.findOne({ patente: patente.toUpperCase(), activo: true });
+    if (!vehiculo) return res.json([]);
+
+    const turnos = await Turno.find({ vehiculo: vehiculo._id })
+      .populate('cliente')
+      .populate('vehiculo')
+      .sort({ fecha: 1 });
+
+    return res.json(turnos);
+  }
+
+  const turnos = await Turno.find({
+    estado: { $in: ['pendiente', 'confirmado'] },
+    fecha: { $gte: ahora }
+  })
+    .populate('cliente')
+    .populate('vehiculo')
     .sort({ fecha: 1 });
 
-  res.json(data.filter(t => t.cliente && t.vehiculo));
+  res.json(turnos);
 });
 
 /* ======================================================
-   PATCH /api/turnos/:id/aprobar (SOLO TALLER)
-   ====================================================== */
-router.patch(
-  '/:id/aprobar',
-  auth,
-  requireRole(['taller']),
-  async (req, res) => {
-    try {
-      const turno = await Turno.findById(req.params.id).populate('cliente vehiculo');
-      if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
+   GET /api/turnos/pendientes
+====================================================== */
+router.get('/pendientes', async (_, res) => {
+  const data = await Turno.find({ estado: 'pendiente' })
+    .populate('cliente')
+    .populate('vehiculo')
+    .sort({ fecha: 1 });
 
-      if (!turno.cliente.activo || !turno.vehiculo.activo) {
-        return res.status(409).json({ error: 'Cliente o vehículo desactivado' });
-      }
-
-      await cambiarEstado(turno, 'confirmado', {
-        actor: 'taller',
-        motivo: 'Aprobado por el taller'
-      });
-
-      if (process.env.N8N_WEBHOOK_APPROVAL) {
-        axios.post(process.env.N8N_WEBHOOK_APPROVAL, {
-          evento: 'turno_confirmado',
-          turno
-        }).catch(() => {});
-      }
-
-      res.json(turno);
-    } catch (err) {
-      res.status(409).json({ error: err.message });
-    }
-  }
-);
+  res.json(data);
+});
 
 /* ======================================================
-   PATCH /api/turnos/:id/rechazar (SOLO TALLER)
-   ====================================================== */
-router.patch(
-  '/:id/rechazar',
-  auth,
-  requireRole(['taller']),
-  async (req, res) => {
-    try {
-      const turno = await Turno.findById(req.params.id);
-      if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
+   GET /api/turnos/all
+====================================================== */
+router.get('/all', async (_, res) => {
+  const turnos = await Turno.find({})
+    .populate('cliente')
+    .populate('vehiculo')
+    .sort({ fecha: 1 });
 
-      await cambiarEstado(turno, 'rechazado', {
-        actor: 'taller',
-        motivo: 'Rechazado por el taller'
-      });
-
-      res.json(turno);
-    } catch (err) {
-      res.status(409).json({ error: err.message });
-    }
-  }
-);
+  res.json(turnos);
+});
 
 /* ======================================================
-   PATCH /api/turnos/:id/cancelar (CLIENTE / TALLER)
-   ====================================================== */
-router.patch(
-  '/:id/cancelar',
-  auth,
-  requireRole(['cliente', 'taller']),
-  async (req, res) => {
-    try {
-      const turno = await Turno.findById(req.params.id);
-      if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
-
-      await cambiarEstado(turno, 'cancelado', {
-        actor: req.user.rol,
-        motivo: 'Cancelación desde API'
-      });
-
-      res.json(turno);
-    } catch (err) {
-      res.status(409).json({ error: err.message });
-    }
-  }
-);
-
-/* ======================================================
-   PATCH /api/turnos/:id/notificado
-   ====================================================== */
-router.patch('/:id/notificado', async (req, res) => {
+   ✅ GET /api/turnos/:id  (ESTO FALTABA)
+====================================================== */
+router.get('/:id', async (req, res) => {
   try {
-    const turno = await Turno.findById(req.params.id);
-    if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
+    const turno = await Turno.findById(req.params.id)
+      .populate('cliente')
+      .populate('vehiculo');
 
-    if (turno.estado === 'pendiente') {
-      return res.status(409).json({ error: 'No se puede notificar un turno pendiente' });
+    if (!turno) {
+      return res.status(404).json({ error: 'Turno no encontrado' });
     }
 
-    if (turno.notificado === true) {
-      return res.json({ ok: true, turno });
-    }
-
-    turno.notificado = true;
-    await turno.save({ validateBeforeSave: false });
-
-    res.json({ ok: true, turno });
+    res.json(turno);
   } catch {
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(400).json({ error: 'ID inválido' });
   }
+});
+
+/* ======================================================
+   PATCH ESTADOS
+====================================================== */
+router.patch('/:id/aprobar', auth, requireRole(['taller']), async (req, res) => {
+  const turno = await Turno.findById(req.params.id);
+  if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
+
+  await cambiarEstado(turno, 'confirmado', { actor: 'taller' });
+  res.json(turno);
+});
+
+router.patch('/:id/rechazar', auth, requireRole(['taller']), async (req, res) => {
+  const turno = await Turno.findById(req.params.id);
+  if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
+
+  await cambiarEstado(turno, 'rechazado', { actor: 'taller' });
+  res.json(turno);
+});
+
+router.patch('/:id/cancelar', auth, requireRole(['cliente', 'taller']), async (req, res) => {
+  const turno = await Turno.findById(req.params.id);
+  if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
+
+  await cambiarEstado(turno, 'cancelado', { actor: req.user.rol });
+  res.json(turno);
 });
 
 module.exports = router;
