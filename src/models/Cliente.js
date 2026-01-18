@@ -29,6 +29,12 @@ const clienteSchema = new Schema(
       required: false
     },
 
+    rol: {
+      type: String,
+      enum: ['cliente', 'taller'],
+      default: 'cliente'
+    },
+
     whatsappBlocked: {
       type: Boolean,
       default: false

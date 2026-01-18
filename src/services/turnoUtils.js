@@ -82,6 +82,7 @@ function overlaps(startA, endA, startB, endB) {
 
 module.exports = {
   toArgentinaDate,
+  toArgentina: toArgentinaDate, // Alias para compatibilidad
   parseTimeToMinutes,
   getMinutesOfDay,
   dateOnly,

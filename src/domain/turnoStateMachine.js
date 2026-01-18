@@ -17,7 +17,7 @@ async function cambiarEstado(turno, nuevoEstado, options = {}) {
   }
 
   // 1️⃣ Persistir auditoría (ANTES del cambio)
-  await TurnoAudit.create({
+  await TurnoAuditoria.create({
     turno: turno._id,
     estadoAnterior: estadoActual,
     estadoNuevo: nuevoEstado,
@@ -35,7 +35,7 @@ async function cambiarEstado(turno, nuevoEstado, options = {}) {
   }
 
   if (nuevoEstado === 'confirmado') {
-    turno.confirmadoEn = new Date();
+    turno.aprobadoEn = new Date();
   }
 
   await turno.save();

@@ -4,13 +4,15 @@ const router = express.Router();
 const Cliente = require('../models/Cliente');
 const Vehiculo = require('../models/Vehiculo');
 const Turno = require('../models/Turno');
+const { sanitizeString, validateAndSanitizeString } = require('../utils/validators');
+const { createLimiter } = require('../middlewares/rateLimiter');
 
 // ==========================================================
 //  POST /api/clientes → Crear cliente
 // ==========================================================
-router.post('/', async (req, res) => {
+router.post('/', createLimiter, async (req, res) => {
   try {
-    const { nombre, telefono } = req.body;
+    let { nombre, telefono } = req.body;
 
     if (!nombre || !telefono) {
       return res.status(400).json({
@@ -18,9 +20,19 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // Sanitizar entrada
+    nombre = validateAndSanitizeString(nombre, 2, 100);
+    telefono = sanitizeString(telefono);
+
+    if (!nombre) {
+      return res.status(400).json({
+        error: "Nombre inválido (debe tener entre 2 y 100 caracteres)"
+      });
+    }
+
     const cliente = new Cliente({
-      nombre: nombre.trim(),
-      telefono: telefono.trim()
+      nombre,
+      telefono
     });
 
     await cliente.save();
@@ -78,7 +90,16 @@ router.patch('/:id', async (req, res) => {
 
     for (const key of allowed) {
       if (req.body[key] !== undefined) {
-        updates[key] = req.body[key].trim();
+        if (key === 'nombre') {
+          updates[key] = validateAndSanitizeString(req.body[key], 2, 100);
+          if (!updates[key]) {
+            return res.status(400).json({
+              error: 'Nombre inválido (debe tener entre 2 y 100 caracteres)'
+            });
+          }
+        } else {
+          updates[key] = sanitizeString(req.body[key]);
+        }
       }
     }
 

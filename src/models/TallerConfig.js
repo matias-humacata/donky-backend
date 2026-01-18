@@ -58,9 +58,6 @@ const TallerConfigSchema = new Schema({
 
 }, { timestamps: true });
 
-// 🔒 Único documento permitido
-TallerConfigSchema.index({}, { unique: true });
-
 // Validación: inicio < fin
 TallerConfigSchema.pre("save", function() {
   if (this.vacaciones && this.vacaciones.length) {

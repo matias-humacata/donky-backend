@@ -66,6 +66,12 @@ const TurnoSchema = new Schema(
       type: Boolean,
       default: false,
       index: true
+    },
+
+    // Técnico asignado
+    tecnico: {
+      type: String,
+      trim: true
     }
   },
   { timestamps: true }

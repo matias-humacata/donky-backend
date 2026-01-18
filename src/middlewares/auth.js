@@ -18,7 +18,7 @@ module.exports = function auth(req, res, next) {
 
     // 👇 Lo que usamos después en routes
     req.user = {
-      id: decoded.id,
+      id: decoded._id || decoded.id,
       rol: decoded.rol
     };
 

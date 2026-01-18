@@ -5,6 +5,8 @@ const router = express.Router();
 const Vehiculo = require('../models/Vehiculo');
 const Cliente = require('../models/Cliente');
 const Turno = require('../models/Turno');
+const OrdenTrabajo = require('../models/OrdenTrabajo');
+const { generarHistorialPDF } = require('../services/pdfGenerator');
 
 // ==========================
 // Crear vehículo
@@ -97,7 +99,117 @@ router.get('/id/:id', async (req, res) => {
 });
 
 // ==========================
-// Historial por patente
+// Descargar PDF del historial por ID
+// ==========================
+router.get('/id/:id/historial/pdf', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "ID inválido" });
+    }
+
+    const vehiculo = await Vehiculo.findById(req.params.id).populate('cliente');
+    if (!vehiculo) {
+      return res.status(404).json({ error: "Vehículo no encontrado" });
+    }
+
+    // Obtener datos del historial
+    const turnos = await Turno.find({ vehiculo: vehiculo._id })
+      .populate('cliente')
+      .sort({ fecha: -1 });
+
+    const ordenesTrabajo = await OrdenTrabajo.find({ vehiculo: vehiculo._id })
+      .populate('turno')
+      .populate('cliente')
+      .sort({ createdAt: -1 });
+
+    // Calcular estadísticas
+    const estadisticas = {
+      totalTurnos: turnos.length,
+      turnosConfirmados: turnos.filter(t => t.estado === 'confirmado').length,
+      totalOrdenesTrabajo: ordenesTrabajo.length,
+      ordenesCompletadas: ordenesTrabajo.filter(ot => ot.estado === 'completada').length
+    };
+
+    // Generar PDF
+    const doc = generarHistorialPDF(
+      vehiculo,
+      vehiculo.cliente,
+      turnos,
+      ordenesTrabajo,
+      estadisticas
+    );
+
+    // Configurar headers para descarga
+    const filename = `Historial_${vehiculo.patente}_${new Date().toISOString().split('T')[0]}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Enviar PDF
+    doc.pipe(res);
+    doc.end();
+
+  } catch (err) {
+    console.error('Error generando PDF:', err);
+    res.status(500).json({ error: 'Error al generar el PDF' });
+  }
+});
+
+// ==========================
+// Descargar PDF del historial por patente
+// ==========================
+router.get('/patente/:patente/historial/pdf', async (req, res) => {
+  try {
+    const patente = req.params.patente.toUpperCase().replace(/\s|-/g, '');
+
+    const vehiculo = await Vehiculo.findOne({ patente }).populate('cliente');
+    if (!vehiculo) {
+      return res.status(404).json({ error: "Vehículo no encontrado" });
+    }
+
+    // Obtener datos del historial
+    const turnos = await Turno.find({ vehiculo: vehiculo._id })
+      .populate('cliente')
+      .sort({ fecha: -1 });
+
+    const ordenesTrabajo = await OrdenTrabajo.find({ vehiculo: vehiculo._id })
+      .populate('turno')
+      .populate('cliente')
+      .sort({ createdAt: -1 });
+
+    // Calcular estadísticas
+    const estadisticas = {
+      totalTurnos: turnos.length,
+      turnosConfirmados: turnos.filter(t => t.estado === 'confirmado').length,
+      totalOrdenesTrabajo: ordenesTrabajo.length,
+      ordenesCompletadas: ordenesTrabajo.filter(ot => ot.estado === 'completada').length
+    };
+
+    // Generar PDF
+    const doc = generarHistorialPDF(
+      vehiculo,
+      vehiculo.cliente,
+      turnos,
+      ordenesTrabajo,
+      estadisticas
+    );
+
+    // Configurar headers para descarga
+    const filename = `Historial_${vehiculo.patente}_${new Date().toISOString().split('T')[0]}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Enviar PDF
+    doc.pipe(res);
+    doc.end();
+
+  } catch (err) {
+    console.error('Error generando PDF:', err);
+    res.status(500).json({ error: 'Error al generar el PDF' });
+  }
+});
+
+// ==========================
+// Historial completo por patente
 // ==========================
 router.get('/patente/:patente/historial', async (req, res) => {
   try {
@@ -110,7 +222,35 @@ router.get('/patente/:patente/historial', async (req, res) => {
       return res.status(404).json({ error: "Vehículo no encontrado" });
     }
 
-    res.json(vehiculo);
+    // Obtener todos los turnos del vehículo
+    const turnos = await Turno.find({ vehiculo: vehiculo._id })
+      .populate('cliente')
+      .sort({ fecha: -1 });
+
+    // Obtener todas las órdenes de trabajo del vehículo
+    const ordenesTrabajo = await OrdenTrabajo.find({ vehiculo: vehiculo._id })
+      .populate('turno')
+      .populate('cliente')
+      .sort({ createdAt: -1 });
+
+    // Calcular estadísticas
+    const estadisticas = {
+      totalTurnos: turnos.length,
+      turnosConfirmados: turnos.filter(t => t.estado === 'confirmado').length,
+      totalOrdenesTrabajo: ordenesTrabajo.length,
+      ordenesCompletadas: ordenesTrabajo.filter(ot => ot.estado === 'completada').length,
+      ultimoTurno: turnos[0] || null,
+      ultimaOrdenTrabajo: ordenesTrabajo[0] || null
+    };
+
+    res.json({
+      vehiculo,
+      historial: {
+        turnos,
+        ordenesTrabajo,
+        estadisticas
+      }
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
