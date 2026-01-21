@@ -101,8 +101,25 @@ app.use((req, res) => {
    ====================================================== */
 
 app.use((err, req, res, next) => {
-  console.error('🔥 Error global:', err);
-  res.status(500).json({ error: 'Error interno del servidor' });
+  // Log detallado solo en desarrollo
+  if (process.env.NODE_ENV !== 'production') {
+    console.error('🔥 Error global:', err);
+  } else {
+    // En producción, log sin stack trace completo
+    console.error('🔥 Error global:', {
+      message: err.message,
+      path: req.path,
+      method: req.method,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // No exponer detalles del error en producción
+  const errorMessage = process.env.NODE_ENV === 'production'
+    ? 'Error interno del servidor'
+    : err.message;
+
+  res.status(err.status || 500).json({ error: errorMessage });
 });
 
 module.exports = app;
