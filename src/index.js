@@ -5,15 +5,9 @@ require('dotenv').config();
 const app = require('./app');
 const mongoose = require('mongoose');
 
-// Validar variables de entorno requeridas
+// Validar que exista la URI
 if (!process.env.MONGO_URI) {
   console.error("❌ ERROR: Falta la variable MONGO_URI en el archivo .env");
-  process.exit(1);
-}
-
-if (!process.env.JWT_SECRET) {
-  console.error("❌ ERROR: Falta la variable JWT_SECRET en el archivo .env");
-  console.error("⚠️  JWT_SECRET es requerido para la autenticación.");
   process.exit(1);
 }
 
