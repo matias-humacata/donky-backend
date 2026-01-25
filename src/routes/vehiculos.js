@@ -14,36 +14,57 @@ router.post('/', async (req, res) => {
     const { cliente, marca, modelo, patente, anio } = req.body;
 
     if (!cliente || !marca || !modelo || !patente) {
+      console.warn('⚠️ [VEHICULOS] Intento de crear vehículo con datos incompletos:', { 
+        tieneCliente: !!cliente, 
+        tieneMarca: !!marca, 
+        tieneModelo: !!modelo, 
+        tienePatente: !!patente 
+      });
       return res.status(400).json({
         error: "cliente, marca, modelo y patente son obligatorios"
       });
     }
 
     if (!mongoose.Types.ObjectId.isValid(cliente)) {
+      console.warn('⚠️ [VEHICULOS] ID de cliente inválido:', cliente);
       return res.status(400).json({ error: "ID de cliente inválido" });
     }
 
     const existeCliente = await Cliente.findById(cliente);
     if (!existeCliente) {
+      console.warn('⚠️ [VEHICULOS] Cliente no encontrado al crear vehículo:', { clienteId: cliente, patente });
       return res.status(404).json({ error: "El cliente no existe" });
     }
+
+    const patenteNormalizada = patente.toUpperCase().replace(/\s|-/g, '');
+    console.log('🚗 [VEHICULOS] Creando nuevo vehículo:', { cliente, marca, modelo, patente: patenteNormalizada, anio });
 
     const vehiculo = new Vehiculo({
       cliente,
       marca,
       modelo,
-      patente: patente.toUpperCase().replace(/\s|-/g, ''),
+      patente: patenteNormalizada,
       anio
     });
 
     await vehiculo.save();
 
+    console.log('✅ [VEHICULOS] Vehículo creado exitosamente:', { 
+      vehiculoId: vehiculo._id, 
+      patente: patenteNormalizada, 
+      cliente, 
+      marca, 
+      modelo 
+    });
+
     res.status(201).json({ ok: true, data: vehiculo });
 
   } catch (err) {
     if (err.code === 11000) {
+      console.warn('⚠️ [VEHICULOS] Intento de crear vehículo con patente duplicada:', { patente: req.body.patente });
       return res.status(409).json({ error: "La patente ya está registrada" });
     }
+    console.error('❌ [VEHICULOS] Error al crear vehículo:', err.message);
     res.status(500).json({ error: "Error interno del servidor" });
   }
 });
@@ -162,32 +183,44 @@ router.patch('/id/:id', async (req, res) => {
 router.delete('/id/:id', async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      console.warn('⚠️ [VEHICULOS] ID inválido al eliminar:', req.params.id);
       return res.status(400).json({ error: "ID inválido" });
     }
 
     const force = req.query.force === 'true';
+    const vehiculoId = req.params.id;
+
+    console.log('🗑️ [VEHICULOS] Eliminando vehículo:', { vehiculoId, force });
 
     const turnoFuturo = await Turno.exists({
-      vehiculo: req.params.id,
+      vehiculo: vehiculoId,
       fecha: { $gte: new Date() },
       estado: { $in: ['pendiente', 'confirmado'] }
     });
 
     if (turnoFuturo && !force) {
+      console.warn('⚠️ [VEHICULOS] Intento de eliminar vehículo con turnos futuros:', { vehiculoId });
       return res.status(409).json({
         error: "El vehículo tiene turnos futuros. Use ?force=true"
       });
     }
 
     if (force) {
-      await Turno.deleteMany({ vehiculo: req.params.id });
+      const turnosEliminados = await Turno.deleteMany({ vehiculo: vehiculoId });
+      console.log('🗑️ [VEHICULOS] Eliminación forzada - turnos eliminados:', { vehiculoId, turnos: turnosEliminados.deletedCount });
     }
 
-    const veh = await Vehiculo.findByIdAndDelete(req.params.id);
-    if (!veh) return res.status(404).json({ error: "Vehículo no encontrado" });
+    const veh = await Vehiculo.findByIdAndDelete(vehiculoId);
+    if (!veh) {
+      console.warn('⚠️ [VEHICULOS] Intento de eliminar vehículo inexistente:', { vehiculoId });
+      return res.status(404).json({ error: "Vehículo no encontrado" });
+    }
+
+    console.log('✅ [VEHICULOS] Vehículo eliminado exitosamente:', { vehiculoId, patente: veh.patente });
 
     res.json({ ok: true, message: "Vehículo eliminado" });
   } catch (err) {
+    console.error('❌ [VEHICULOS] Error al eliminar vehículo:', { vehiculoId: req.params.id, error: err.message });
     res.status(500).json({ error: "Error interno del servidor" });
   }
 });

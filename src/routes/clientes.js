@@ -13,10 +13,13 @@ router.post('/', async (req, res) => {
     const { nombre, telefono } = req.body;
 
     if (!nombre || !telefono) {
+      console.warn('⚠️ [CLIENTES] Intento de crear cliente con datos incompletos:', { tieneNombre: !!nombre, tieneTelefono: !!telefono });
       return res.status(400).json({
         error: "Nombre y teléfono son obligatorios"
       });
     }
+
+    console.log('👤 [CLIENTES] Creando nuevo cliente:', { nombre, telefono });
 
     const cliente = new Cliente({
       nombre: nombre.trim(),
@@ -25,18 +28,22 @@ router.post('/', async (req, res) => {
 
     await cliente.save();
 
+    console.log('✅ [CLIENTES] Cliente creado exitosamente:', { clienteId: cliente._id, nombre, telefono });
+
     return res.status(201).json(cliente);
 
   } catch (err) {
     // Error de clave duplicada
     if (err.code === 11000) {
       const campo = Object.keys(err.keyValue || {})[0] || 'campo';
+      console.warn('⚠️ [CLIENTES] Intento de crear cliente con valor duplicado:', { campo, valor: err.keyValue });
       return res.status(409).json({
         error: `El valor ya está registrado para ${campo}`,
         campo
       });
     }
 
+    console.error('❌ [CLIENTES] Error al crear cliente:', err.message);
     return res.status(400).json({ error: err.message });
   }
 });
@@ -164,28 +171,44 @@ router.delete('/:id', async (req, res) => {
     const clienteId = req.params.id;
     const force = req.query.force === 'true';
 
+    console.log('🗑️ [CLIENTES] Eliminando cliente:', { clienteId, force });
+
     const tieneVehiculos = await Vehiculo.exists({ cliente: clienteId });
     const tieneTurnos = await Turno.exists({ cliente: clienteId });
 
     if ((tieneVehiculos || tieneTurnos) && !force) {
+      console.warn('⚠️ [CLIENTES] Intento de eliminar cliente con dependencias:', { 
+        clienteId, 
+        tieneVehiculos: !!tieneVehiculos, 
+        tieneTurnos: !!tieneTurnos 
+      });
       return res.status(409).json({
         error: 'El cliente tiene vehículos o turnos asociados. Use ?force=true'
       });
     }
 
     if (force) {
-      await Vehiculo.deleteMany({ cliente: clienteId });
-      await Turno.deleteMany({ cliente: clienteId });
+      const vehiculosEliminados = await Vehiculo.deleteMany({ cliente: clienteId });
+      const turnosEliminados = await Turno.deleteMany({ cliente: clienteId });
+      console.log('🗑️ [CLIENTES] Eliminación forzada - dependencias eliminadas:', { 
+        clienteId, 
+        vehiculos: vehiculosEliminados.deletedCount, 
+        turnos: turnosEliminados.deletedCount 
+      });
     }
 
     const cliente = await Cliente.findByIdAndDelete(clienteId);
     if (!cliente) {
+      console.warn('⚠️ [CLIENTES] Intento de eliminar cliente inexistente:', { clienteId });
       return res.status(404).json({ error: 'Cliente no encontrado' });
     }
+
+    console.log('✅ [CLIENTES] Cliente eliminado exitosamente:', { clienteId, nombre: cliente.nombre });
 
     return res.json({ message: 'Cliente eliminado', cliente });
 
   } catch (err) {
+    console.error('❌ [CLIENTES] Error al eliminar cliente:', { clienteId: req.params.id, error: err.message });
     return res.status(400).json({ error: err.message });
   }
 });
