@@ -63,13 +63,13 @@ El backend incluye las siguientes medidas de seguridad:
 
 ## Creacion de usuarios
 - desde postman con este curl
-  curl --location 'http://localhost:4000/api/auth/register' \
+  `curl --location 'http://localhost:4000/api/auth/register' \
 --header 'Content-Type: application/json' \
 --data-raw '{
     "nombre": "Admin Taller",
     "email": "admin@taller.com",
     "password": "admin123"
-}'
+}'`
 
 
 
