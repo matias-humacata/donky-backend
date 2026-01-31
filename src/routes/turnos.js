@@ -28,14 +28,27 @@ const addMinutes = (date, mins) =>
 ====================================================== */
 async function validarClienteYVehiculo(clienteId, vehiculoId) {
   const cliente = await Cliente.findById(clienteId);
-  if (!cliente) throw new Error('Cliente no existe');
-  if (!cliente.activo) throw new Error('Cliente desactivado');
+  if (!cliente) {
+    console.warn('⚠️ [TURNOS] Cliente no encontrado en validación:', { clienteId });
+    throw new Error('Cliente no existe');
+  }
+  if (!cliente.activo) {
+    console.warn('⚠️ [TURNOS] Cliente desactivado:', { clienteId, nombre: cliente.nombre });
+    throw new Error('Cliente desactivado');
+  }
 
   const vehiculo = await Vehiculo.findById(vehiculoId);
-  if (!vehiculo) throw new Error('Vehículo no existe');
-  if (!vehiculo.activo) throw new Error('Vehículo desactivado');
+  if (!vehiculo) {
+    console.warn('⚠️ [TURNOS] Vehículo no encontrado en validación:', { vehiculoId });
+    throw new Error('Vehículo no existe');
+  }
+  if (!vehiculo.activo) {
+    console.warn('⚠️ [TURNOS] Vehículo desactivado:', { vehiculoId, patente: vehiculo.patente });
+    throw new Error('Vehículo desactivado');
+  }
 
   if (vehiculo.cliente.toString() !== cliente._id.toString()) {
+    console.warn('⚠️ [TURNOS] Vehículo no pertenece al cliente:', { clienteId, vehiculoId, vehiculoCliente: vehiculo.cliente });
     throw new Error('El vehículo no pertenece al cliente');
   }
 }
@@ -107,9 +120,17 @@ async function validarTurno({ fecha, duracionMin, excluirTurnoId = null }) {
 router.post('/', async (req, res) => {
   try {
     const { cliente, vehiculo, fecha, duracionMin = 60 } = req.body;
+    
     if (!cliente || !vehiculo || !fecha) {
+      console.warn('⚠️ [TURNOS] Intento de crear turno con datos incompletos:', { 
+        tieneCliente: !!cliente, 
+        tieneVehiculo: !!vehiculo, 
+        tieneFecha: !!fecha 
+      });
       return res.status(400).json({ error: 'Datos obligatorios faltantes' });
     }
+
+    console.log('📅 [TURNOS] Creando nuevo turno:', { cliente, vehiculo, fecha, duracionMin });
 
     await validarClienteYVehiculo(cliente, vehiculo);
 
@@ -124,8 +145,21 @@ router.post('/', async (req, res) => {
       estado: 'pendiente'
     });
 
+    console.log('✅ [TURNOS] Turno creado exitosamente:', { 
+      turnoId: turno._id, 
+      cliente, 
+      vehiculo, 
+      fecha: fechaAR,
+      estado: turno.estado 
+    });
+
     res.status(201).json(turno);
   } catch (err) {
+    console.error('❌ [TURNOS] Error al crear turno:', { 
+      error: err.message, 
+      cliente: req.body.cliente, 
+      vehiculo: req.body.vehiculo 
+    });
     res.status(409).json({ error: err.message });
   }
 });
@@ -207,27 +241,57 @@ router.get('/:id', async (req, res) => {
    PATCH ESTADOS
 ====================================================== */
 router.patch('/:id/aprobar', auth, requireRole(['taller']), async (req, res) => {
-  const turno = await Turno.findById(req.params.id);
-  if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
+  try {
+    const turno = await Turno.findById(req.params.id);
+    if (!turno) {
+      console.warn('⚠️ [TURNOS] Intento de aprobar turno inexistente:', { turnoId: req.params.id, userId: req.user.id });
+      return res.status(404).json({ error: 'Turno no encontrado' });
+    }
 
-  await cambiarEstado(turno, 'confirmado', { actor: 'taller' });
-  res.json(turno);
+    console.log('✅ [TURNOS] Aprobando turno:', { turnoId: turno._id, estadoActual: turno.estado, userId: req.user.id });
+
+    await cambiarEstado(turno, 'confirmado', { actor: 'taller' });
+    res.json(turno);
+  } catch (err) {
+    console.error('❌ [TURNOS] Error al aprobar turno:', { turnoId: req.params.id, error: err.message });
+    res.status(400).json({ error: err.message });
+  }
 });
 
 router.patch('/:id/rechazar', auth, requireRole(['taller']), async (req, res) => {
-  const turno = await Turno.findById(req.params.id);
-  if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
+  try {
+    const turno = await Turno.findById(req.params.id);
+    if (!turno) {
+      console.warn('⚠️ [TURNOS] Intento de rechazar turno inexistente:', { turnoId: req.params.id, userId: req.user.id });
+      return res.status(404).json({ error: 'Turno no encontrado' });
+    }
 
-  await cambiarEstado(turno, 'rechazado', { actor: 'taller' });
-  res.json(turno);
+    console.log('❌ [TURNOS] Rechazando turno:', { turnoId: turno._id, estadoActual: turno.estado, userId: req.user.id });
+
+    await cambiarEstado(turno, 'rechazado', { actor: 'taller' });
+    res.json(turno);
+  } catch (err) {
+    console.error('❌ [TURNOS] Error al rechazar turno:', { turnoId: req.params.id, error: err.message });
+    res.status(400).json({ error: err.message });
+  }
 });
 
 router.patch('/:id/cancelar', auth, requireRole(['cliente', 'taller']), async (req, res) => {
-  const turno = await Turno.findById(req.params.id);
-  if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
+  try {
+    const turno = await Turno.findById(req.params.id);
+    if (!turno) {
+      console.warn('⚠️ [TURNOS] Intento de cancelar turno inexistente:', { turnoId: req.params.id, userId: req.user.id });
+      return res.status(404).json({ error: 'Turno no encontrado' });
+    }
 
-  await cambiarEstado(turno, 'cancelado', { actor: req.user.rol });
-  res.json(turno);
+    console.log('🚫 [TURNOS] Cancelando turno:', { turnoId: turno._id, estadoActual: turno.estado, actor: req.user.rol, userId: req.user.id });
+
+    await cambiarEstado(turno, 'cancelado', { actor: req.user.rol });
+    res.json(turno);
+  } catch (err) {
+    console.error('❌ [TURNOS] Error al cancelar turno:', { turnoId: req.params.id, error: err.message });
+    res.status(400).json({ error: err.message });
+  }
 });
 
 module.exports = router;
