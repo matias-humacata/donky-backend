@@ -60,3 +60,16 @@ El backend incluye las siguientes medidas de seguridad:
 - Agregar autenticación y/o roles
 - Implementar paginación en endpoints que devuelven listas
 - Añadir pruebas y CI
+
+## Creacion de usuarios
+- desde postman con este curl
+  curl --location 'http://localhost:4000/api/auth/register' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "nombre": "Admin Taller",
+    "email": "admin@taller.com",
+    "password": "admin123"
+}'
+
+
+
