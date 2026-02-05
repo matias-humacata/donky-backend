@@ -121,3 +121,6 @@ module.exports = {
   ESTADOS_FINALES,
   TRANSICIONES_VALIDAS
 };
+
+
+

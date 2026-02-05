@@ -22,8 +22,12 @@ if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
 }
 
+// CORS - configuración para desarrollo y producción
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+  origin: true, // Acepta cualquier origen en desarrollo
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 // Seguridad: limitar tamaño JSON
