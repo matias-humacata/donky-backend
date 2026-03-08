@@ -54,6 +54,25 @@ const TallerConfigSchema = new Schema({
 
   diasNoLaborables: {
     type: [Date]
+  },
+
+  // Capacidad de turnos por día
+  capacidadTurnosPorDia: {
+    type: Number,
+    default: 10,
+    min: [1, "Debe aceptar al menos 1 turno por día"],
+    max: [50, "El máximo es de 50 turnos por día"]
+  },
+
+  // Capacidad específica por día de la semana (opcional, override del general)
+  capacidadPorDia: {
+    lunes: { type: Number, default: null },
+    martes: { type: Number, default: null },
+    miercoles: { type: Number, default: null },
+    jueves: { type: Number, default: null },
+    viernes: { type: Number, default: null },
+    sabado: { type: Number, default: null },
+    domingo: { type: Number, default: null }
   }
 
 }, { timestamps: true });

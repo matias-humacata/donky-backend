@@ -72,6 +72,30 @@ const TurnoSchema = new Schema(
     tecnico: {
       type: String,
       trim: true
+    },
+
+    // Motivo del turno
+    motivo: {
+      type: String,
+      trim: true,
+      maxlength: 500
+    },
+
+    // Tipo de servicio (categoría rápida)
+    tipoServicio: {
+      type: String,
+      enum: [
+        'aceite_filtros',
+        'frenos',
+        'correas',
+        'revision_falla',
+        'mantenimiento_preventivo',
+        'neumaticos',
+        'suspension',
+        'electricidad',
+        'otro'
+      ],
+      default: 'otro'
     }
   },
   { timestamps: true }

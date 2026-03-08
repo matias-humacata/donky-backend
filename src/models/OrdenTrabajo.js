@@ -29,8 +29,8 @@ const OrdenTrabajoSchema = new Schema(
     turno: {
       type: Schema.Types.ObjectId,
       ref: 'Turno',
-      required: true,
-      index: true
+      required: true
+      // ✅ FIX: Índice único definido abajo, no duplicar aquí
     },
 
     vehiculo: {

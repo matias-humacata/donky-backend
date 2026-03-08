@@ -93,4 +93,48 @@ VehiculoSchema.pre('save', function () {
   }
 });
 
+// ✅ FIX: Sincronizar Cliente.vehiculos[] al crear vehículo
+VehiculoSchema.post('save', async function (doc) {
+  // Solo agregar si es un vehículo nuevo y activo
+  if (doc.activo) {
+    const Cliente = mongoose.model('Cliente');
+    await Cliente.findByIdAndUpdate(
+      doc.cliente,
+      { $addToSet: { vehiculos: doc._id } },
+      { new: true }
+    );
+  }
+});
+
+// ✅ FIX: Remover de Cliente.vehiculos[] al eliminar vehículo
+VehiculoSchema.post('findOneAndDelete', async function (doc) {
+  if (doc) {
+    const Cliente = mongoose.model('Cliente');
+    await Cliente.findByIdAndUpdate(
+      doc.cliente,
+      { $pull: { vehiculos: doc._id } }
+    );
+  }
+});
+
+// ✅ FIX: Actualizar Cliente.vehiculos[] cuando se desactiva/activa vehículo
+VehiculoSchema.post('findOneAndUpdate', async function (doc) {
+  if (doc) {
+    const Cliente = mongoose.model('Cliente');
+    if (doc.activo) {
+      // Si está activo, asegurar que está en el array
+      await Cliente.findByIdAndUpdate(
+        doc.cliente,
+        { $addToSet: { vehiculos: doc._id } }
+      );
+    } else {
+      // Si está inactivo, remover del array
+      await Cliente.findByIdAndUpdate(
+        doc.cliente,
+        { $pull: { vehiculos: doc._id } }
+      );
+    }
+  }
+});
+
 module.exports = mongoose.model('Vehiculo', VehiculoSchema);

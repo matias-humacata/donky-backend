@@ -10,6 +10,8 @@ const vehiculosRoute = require('./routes/vehiculos');
 const turnosRoute = require('./routes/turnos');
 const tallerConfigRoute = require('./routes/tallerConfig');
 const metricasRoutes = require('./routes/metricas');
+const ordenesTrabajoRoute = require('./routes/ordenesTrabajo');
+const vehicleHistoryRoute = require('./routes/vehicleHistory');
 
 const app = express();
 
@@ -22,12 +24,37 @@ if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
 }
 
-// CORS - configuración para desarrollo y producción
+// CORS - Configuración para desarrollo
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000', 
+  'http://127.0.0.1:5173',
+  'http://localhost:5174',
+];
+
+// Si hay FRONTEND_URL en .env, agregarlo a la lista
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
 app.use(cors({
-  origin: true, // Acepta cualquier origen en desarrollo
+  origin: function(origin, callback) {
+    // Permitir requests sin origin (como Postman o curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log('⚠️ CORS bloqueado para origin:', origin);
+      // En desarrollo, permitir igual pero avisar
+      if (process.env.NODE_ENV !== 'production') {
+        callback(null, true);
+      } else {
+        callback(new Error('CORS no permitido'));
+      }
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 // Seguridad: limitar tamaño JSON
@@ -43,6 +70,8 @@ app.use('/api/vehiculos', vehiculosRoute);
 app.use('/api/turnos', turnosRoute);
 app.use('/api/taller', tallerConfigRoute);
 app.use('/api/metricas', metricasRoutes);
+app.use('/api/ordenes', ordenesTrabajoRoute);
+app.use('/api/history', vehicleHistoryRoute);
 
 /* ======================================================
    HEALTH CHECK

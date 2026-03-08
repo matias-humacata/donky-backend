@@ -7,7 +7,17 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "test": "jest"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:integration": "jest tests/integration --runInBand",
+    "seed": "node tests/seeds/seed.js",
+    "seed:clear": "node tests/seeds/seed.js --clear",
+    "seed:small": "node tests/seeds/seed.js --clientes 20",
+    "test:load": "k6 run tests/load/k6-config.js",
+    "test:load:smoke": "k6 run --env SCENARIO=smoke tests/load/k6-config.js",
+    "test:load:full": "k6 run --env SCENARIO=load tests/load/k6-config.js",
+    "test:load:stress": "k6 run --env SCENARIO=stress tests/load/k6-config.js"
   },
   "keywords": [
     "taller",
@@ -34,10 +44,14 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.0.0",
     "morgan": "^1.10.0",
-    "pdfkit": "^0.15.0"
+    "pdfkit": "^0.15.0",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.3.0",
     "jest": "^30.2.0",
-    "nodemon": "^3.1.11"
+    "mongodb-memory-server": "^11.0.1",
+    "nodemon": "^3.1.11",
+    "supertest": "^7.2.2"
   }
 }
